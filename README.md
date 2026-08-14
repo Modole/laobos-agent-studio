@@ -39,6 +39,20 @@ Electron 开发模式：
 npm run desktop:dev
 ```
 
+## 桌面安装包
+
+公开发布提供两个原生安装包：macOS Apple 芯片版（DMG）与 Windows x64 版（NSIS EXE）。两者都由 GitHub Actions 在对应系统的原生 Runner 上构建，避免原生模块交叉编译导致不兼容。
+
+```bash
+# macOS Apple Silicon
+npm run desktop:installer -- --mac dmg --arm64
+
+# Windows x64
+npm run desktop:installer -- --win nsis --x64
+```
+
+当前公开构建未配置 Apple Developer ID 或 Windows Authenticode 证书，因此首次安装会出现系统的“未知开发者/未知发布者”安全提示；发布页同时提供 SHA-256 校验值用于核对文件完整性。签名证书和密码只允许通过 CI Secret 注入，禁止提交到仓库。
+
 常用诊断：
 
 ```bash

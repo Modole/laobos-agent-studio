@@ -36,3 +36,21 @@ test("desktop development starts Electron without the legacy Pi renderer bridge"
   assert.match(packageJson, /"desktop:dev": "npm run build:desktop-plugins && electron \."/);
   assert.match(packageJson, /"dev": "npm run build:desktop-plugins && node scripts\/start-dsh\.mjs"/);
 });
+
+test("desktop release configuration builds native macOS and Windows installers", async () => {
+  const [packageJson, builderConfig, workflow] = await Promise.all([
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../electron-builder.yml", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/installers.yml", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(packageJson, /"desktop:installer": "npm run build:desktop-plugins && electron-builder --publish never"/);
+  assert.match(builderConfig, /target: dmg[\s\S]*arch:\n\s+- arm64/);
+  assert.match(builderConfig, /artifactName: "laobos-studio-\$\{version\}-macos-\$\{arch\}\.\$\{ext\}"/);
+  assert.match(builderConfig, /target: nsis[\s\S]*arch:\n\s+- x64/);
+  assert.match(builderConfig, /artifactName: "laobos-studio-\$\{version\}-windows-\$\{arch\}-setup\.\$\{ext\}"/);
+  assert.match(workflow, /runs-on: macos-15/);
+  assert.match(workflow, /runs-on: windows-latest/);
+  assert.equal(workflow.match(/npm run audit:public/g)?.length, 2);
+  assert.equal(workflow.match(/actions\/upload-artifact@v7/g)?.length, 2);
+});

@@ -144,7 +144,7 @@ test("conversation locator projection indexes every direct human message", async
   assert.match(server, /question: locatorQuestion/);
 });
 
-test("conversation actions stay compact and attach edit/retry to only the latest user message", async () => {
+test("user message actions stay below every user bubble while edit/retry attach only to the latest message", async () => {
   const client = await readFile(
     join(projectRoot, "packages", "laobos-conversation-tools", "lib", "client.js"),
     "utf8",
@@ -157,7 +157,8 @@ test("conversation actions stay compact and attach edit/retry to only the latest
   assert.match(client, /IconEditOutline16/);
   assert.match(client, /IconRefreshOutline16/);
   assert.match(client, /data-chat-anchor-key/);
-  assert.match(client, /data-time-hover-root[^}]*flex-direction:column!important/);
+  assert.match(client, /\[data-time-hover-root\]:not\(\[data-turn-tail\]\)\{[^}]*flex-direction:column!important/);
+  assert.doesNotMatch(client, /:has\(\.lbs-conv-inline-action\)/);
 });
 
 test("the 劳博士 browser plugin injects Cordis services rather than package ids", async () => {

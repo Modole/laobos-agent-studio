@@ -1,7 +1,8 @@
 {
   "name": "laobos-agent-studio",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "劳博士：基于 DeepSeek Harness 的本地 Agent 桌面客户端",
+  "author": "Modole contributors",
   "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "main": "desktop/main.mjs",
@@ -9,8 +10,11 @@
     "node": ">=22.19.0"
   },
   "overrides": {
+    "fast-uri": "3.1.5",
+    "nanoid": "3.3.18",
     "postcss": "8.5.23",
-    "sharp": "0.35.3"
+    "sharp": "0.35.3",
+    "ws": "8.21.3"
   },
   "scripts": {
     "postinstall": "node scripts/ensure-node-pty-helper.mjs",
@@ -27,6 +31,7 @@
     "desktop:stage-pi": "node scripts/stage-pi-binary.mjs",
     "desktop:package": "npm run build:desktop-plugins && node scripts/package-desktop.mjs",
     "desktop:make": "npm run build:desktop-plugins && node scripts/make-desktop.mjs",
+    "desktop:installer": "npm run build:desktop-plugins && electron-builder --publish never",
     "site:dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
     "site:start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
@@ -60,6 +65,7 @@
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
     "electron": "43.2.0",
+    "electron-builder": "26.15.7",
     "esbuild": "^0.28.2",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
