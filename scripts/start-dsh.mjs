@@ -13,8 +13,8 @@ process.env.LAOBOS_STUDIO_ROOT ??= projectRoot;
 const dshBin = join(projectRoot, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
 const patchFile = join(projectRoot, "config", "laobos.cordis.patch.yml");
 
-async function ensureLocalPlugin(dshHome, workspace) {
-  for (const pluginName of ["laobos-system-tools", "laobos-conversation-tools", "laobos-file-attachments", "laobos-workspace-tools", "laobos-terminal-ui", "laobos-browserops", "laobos-ssh", "laobos-app-manager"]) {
+async function ensureLocalPlugin(dshHome) {
+  for (const pluginName of ["laobos-system-tools", "laobos-conversation-tools", "laobos-file-attachments", "laobos-workspace-tools", "laobos-terminal-ui", "laobos-browserops", "laobos-ssh", "laobos-app-manager", "laobos-market"]) {
     const target = join(projectRoot, "packages", pluginName);
     const packageName = pluginName.replace(/^laobos-/, "dsh-");
     const link = join(dshHome, "node_modules", "@laobos", packageName);
@@ -29,39 +29,6 @@ async function ensureLocalPlugin(dshHome, workspace) {
     }
     await symlink(target, link, "dir");
   }
-  // 劳博士插件市场（独立仓库插件）
-  const marketTarget = await resolveMarketPluginDir(workspace);
-  if (marketTarget) {
-    const marketLink = join(dshHome, "node_modules", "@laobos", "dsh-market");
-    await mkdir(dirname(marketLink), { recursive: true, mode: 0o700 });
-    const marketInfo = await lstat(marketLink).catch((error) => error?.code === "ENOENT" ? undefined : Promise.reject(error));
-    if (marketInfo?.isSymbolicLink()) {
-      const current = resolve(dirname(marketLink), await readlink(marketLink));
-      if (current !== marketTarget) await unlink(marketLink);
-      else return;
-    } else if (marketInfo) {
-      throw new Error(`DSH 本地插件位置已被其他文件占用：${marketLink}`);
-    }
-    await symlink(marketTarget, marketLink, "dir");
-  } else {
-    console.warn("[laobos-market] 未找到插件目录，跳过链接（可设置 LAOBOS_MARKET_PLUGIN_DIR）。");
-  }
-}
-
-async function resolveMarketPluginDir(workspace) {
-  const candidates = [
-    process.env.LAOBOS_MARKET_PLUGIN_DIR,
-    resolve(projectRoot, "..", "..", "..", "..", "laoboshi_dsh_data", "v1", "dsh-plugin-market-laoboshi"),
-    workspace ? resolve(workspace, "dsh-plugin-market-laoboshi") : undefined,
-    join(projectRoot, "packages", "laobos-market"),
-  ];
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    try {
-      if ((await stat(candidate)).isDirectory()) return candidate;
-    } catch {}
-  }
-  return null;
 }
 
 function readWorkspace(arguments_) {
@@ -115,7 +82,7 @@ async function main() {
       `Pi 数据自动迁移失败，DSH 将继续启动；可稍后运行 npm run migrate:pi -- --apply。\n${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  await ensureLocalPlugin(dshHome, workspace);
+  await ensureLocalPlugin(dshHome);
   const dshArguments = [
     "--profile",
     "web",
