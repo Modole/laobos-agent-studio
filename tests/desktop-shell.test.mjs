@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
+import { verifyPackagedRuntime } from "../scripts/verify-packaged-runtime.mjs";
 
 test("desktop shell boots DSH directly with a sandboxed renderer", async () => {
   const mainSource = await readFile(
@@ -52,5 +55,39 @@ test("desktop release configuration builds native macOS and Windows installers",
   assert.match(workflow, /runs-on: macos-15/);
   assert.match(workflow, /runs-on: windows-latest/);
   assert.equal(workflow.match(/npm run audit:public/g)?.length, 2);
+  assert.equal(workflow.match(/verify-packaged-runtime\.mjs/g)?.length, 2);
   assert.equal(workflow.match(/actions\/upload-artifact@v7/g)?.length, 2);
+});
+
+test("packaged runtime verification rejects a missing required peer dependency", async () => {
+  const appDirectory = await mkdtemp(path.join(tmpdir(), "laobos-packaged-runtime-test-"));
+  const hostDirectory = path.join(appDirectory, "node_modules", "fixture-host");
+  const peerDirectory = path.join(appDirectory, "node_modules", "fixture-peer");
+
+  try {
+    await mkdir(hostDirectory, { recursive: true });
+    await writeFile(path.join(appDirectory, "package.json"), JSON.stringify({
+      name: "fixture-app",
+      dependencies: { "fixture-host": "1.0.0" },
+    }));
+    await writeFile(path.join(hostDirectory, "package.json"), JSON.stringify({
+      name: "fixture-host",
+      version: "1.0.0",
+      peerDependencies: { "fixture-peer": "^1.0.0" },
+    }));
+
+    await assert.rejects(
+      verifyPackagedRuntime(appDirectory),
+      /fixture-host -> fixture-peer/,
+    );
+
+    await mkdir(peerDirectory, { recursive: true });
+    await writeFile(path.join(peerDirectory, "package.json"), JSON.stringify({
+      name: "fixture-peer",
+      version: "1.0.0",
+    }));
+    assert.deepEqual(await verifyPackagedRuntime(appDirectory), { packageCount: 3 });
+  } finally {
+    await rm(appDirectory, { recursive: true, force: true });
+  }
 });
