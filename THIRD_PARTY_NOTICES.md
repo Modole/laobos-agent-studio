@@ -35,6 +35,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## 劳博士插件市场
+
+- Package: `@laobos/dsh-market` 0.1.0
+- Source snapshot: <https://github.com/Modole/dsh-plugin-market-laoboshi/commit/077e58c6c71224a855ae55a010ddb7bc680862af>
+- Vendored path: `packages/laobos-market`
+- License: MIT
+- Copyright: Copyright (c) 2026 Modole (laoboshi)
+
+完整 MIT 许可文本保存在 `packages/laobos-market/LICENSE`。该目录继续按 MIT 许可发布，不受本项目 PolyForm 非商业限制重新许可。
+
 ## 其他 npm 依赖
 
 完整依赖及锁定版本见 `package.json` 和 `package-lock.json`。各依赖的许可证文本会在 `npm install` 后位于对应的 `node_modules/<package>/LICENSE*` 文件中；Electron 桌面分发物还包含 Electron/Chromium 随附的许可证文件。分发者有责任核对并保留所有适用声明。

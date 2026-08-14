@@ -43,6 +43,4 @@
     - id: laobos-market
       name: '@laobos/dsh-market'
       config:
-        proxyUrl: http://127.0.0.1:7890
-        uploadOwner: Modole
         profile: web

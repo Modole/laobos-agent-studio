@@ -20,7 +20,7 @@ export function startDshRuntime({
 }) {
   const studioRoot = resolve(dirname(patchFile), "..");
   ensureNodePtySpawnHelper(studioRoot);
-  for (const pluginName of ["laobos-system-tools", "laobos-conversation-tools", "laobos-file-attachments", "laobos-workspace-tools", "laobos-terminal-ui", "laobos-browserops", "laobos-ssh", "laobos-app-manager"]) {
+  for (const pluginName of ["laobos-system-tools", "laobos-conversation-tools", "laobos-file-attachments", "laobos-workspace-tools", "laobos-terminal-ui", "laobos-browserops", "laobos-ssh", "laobos-app-manager", "laobos-market"]) {
     const pluginTarget = resolve(studioRoot, "packages", pluginName);
     const pluginLink = resolve(dshHome, "node_modules", "@laobos", pluginName.replace(/^laobos-/, "dsh-"));
     mkdirSync(dirname(pluginLink), { recursive: true, mode: 0o700 });
@@ -37,27 +37,6 @@ export function startDshRuntime({
     if (pluginInfo !== undefined || !lstatExists(pluginLink)) {
       symlinkSync(pluginTarget, pluginLink, "dir");
     }
-  }
-  // 劳博士插件市场（独立仓库插件）：优先环境变量，其次本机固定位置，再次 workspace 相邻目录。
-  const marketPluginTarget = resolveMarketPluginDir(studioRoot, workspace);
-  const marketPluginLink = resolve(dshHome, "node_modules", "@laobos", "dsh-market");
-  if (marketPluginTarget) {
-    mkdirSync(dirname(marketPluginLink), { recursive: true, mode: 0o700 });
-    let marketInfo;
-    try { marketInfo = lstatSync(marketPluginLink); }
-    catch (error) { if (error?.code !== "ENOENT") throw error; }
-    if (marketInfo?.isSymbolicLink()) {
-      const current = resolve(dirname(marketPluginLink), readlinkSync(marketPluginLink));
-      if (current !== marketPluginTarget) unlinkSync(marketPluginLink);
-      else marketInfo = undefined;
-    } else if (marketInfo) {
-      throw new Error(`DSH 本地插件位置已被其他文件占用：${marketPluginLink}`);
-    }
-    if (marketInfo !== undefined || !lstatExists(marketPluginLink)) {
-      symlinkSync(marketPluginTarget, marketPluginLink, "dir");
-    }
-  } else {
-    console.warn("[laobos-market] 未找到插件目录，跳过链接（可设置 LAOBOS_MARKET_PLUGIN_DIR）。");
   }
   const arguments_ = [
     "--expose-internals",
@@ -181,21 +160,4 @@ export function startDshRuntime({
 function lstatExists(filePath) {
   try { lstatSync(filePath); return true; }
   catch (error) { if (error?.code === "ENOENT") return false; throw error; }
-}
-
-/**
- * 解析劳博士插件市场的插件目录（存在才返回）。
- * 候选顺序：环境变量 → 本机数据目录（Documents/laoboshi_dsh_data/v1）→ workspace 相邻 → 仓库内 vendored。
- */
-function resolveMarketPluginDir(studioRoot, workspace) {
-  const candidates = [
-    process.env.LAOBOS_MARKET_PLUGIN_DIR,
-    resolve(studioRoot, "..", "..", "..", "..", "laoboshi_dsh_data", "v1", "dsh-plugin-market-laoboshi"),
-    workspace ? resolve(workspace, "dsh-plugin-market-laoboshi") : undefined,
-    resolve(studioRoot, "packages", "laobos-market"),
-  ];
-  for (const candidate of candidates) {
-    if (candidate && lstatExists(candidate)) return resolve(candidate);
-  }
-  return null;
 }

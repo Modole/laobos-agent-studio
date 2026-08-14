@@ -114,6 +114,7 @@ macOS 默认数据目录：
 - 已发布工作流同时投影到“设置 > Plugins > Agent 自动化”虚拟插件页，任一侧启停或删除都会同步
 - Skills 以名称、简介、范围、状态和实际文件位置的管理表展示；默认管理 DSH 原生目录，可按需查看 `.agents/skills` 兼容内容，并支持一键复制位置、启停、删除和 DSH 热更新
 - MCP 支持 stdio 与 streamable HTTP，以 Server、连接方式、连接目标、工具数量和连接状态的管理表展示；可启停、重连和删除，密钥只以遮罩返回界面
+- 插件市场源码内置于 `packages/laobos-market`，可在“设置 > 插件市场”搜索、安装和管理带有 `dsh-plugin` topic 的插件；代理地址和上传账号默认留空，由使用者自行配置
 - 管理页支持右栏折叠按钮、再次点击当前菜单项、页面“收起”按钮和 Esc 快速返回对话；未保存的 Skills/MCP 修改会先确认
 - 设置中的“系统提示词”默认展示可编辑的“劳博士”身份，以 `order: 39` 注册在 preset persona 与旧迁移指令之后、工具说明之前；用户修改姓名或角色后会覆盖冲突设定，不会保留旧名称作为别名
 - 实体插件清单与虚拟工作流插件统一使用 DSH 官方“设置 > Plugins”页面，不占用项目主侧栏
@@ -186,4 +187,4 @@ npm run audit:public
 - 任何商业使用、预期商业应用或商业分发均须另行取得书面授权。
 - “劳博士”名称、Logo 和其他品牌标识不因源码许可而授予商标权。
 
-第三方组件继续适用各自的许可证，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。如本说明与 LICENSE 冲突，以 LICENSE 原文为准。
+第三方组件以及内置插件市场继续适用各自的许可证，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。如本说明与 LICENSE 冲突，以 LICENSE 原文为准。
