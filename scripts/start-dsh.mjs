@@ -1,0 +1,171 @@
+#!/usr/bin/env node
+
+import { access, lstat, mkdir, readlink, stat, symlink, unlink } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { defaultDshHome, migratePiOnFirstRun } from "../migrations/auto-pi.mjs";
+import { ensureNodePtySpawnHelper } from "./ensure-node-pty-helper.mjs";
+
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(scriptDirectory, "..");
+process.env.LAOBOS_STUDIO_ROOT ??= projectRoot;
+const dshBin = join(projectRoot, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
+const patchFile = join(projectRoot, "config", "laobos.cordis.patch.yml");
+
+async function ensureLocalPlugin(dshHome, workspace) {
+  for (const pluginName of ["laobos-system-tools", "laobos-conversation-tools", "laobos-file-attachments", "laobos-workspace-tools", "laobos-terminal-ui", "laobos-browserops", "laobos-ssh", "laobos-app-manager"]) {
+    const target = join(projectRoot, "packages", pluginName);
+    const packageName = pluginName.replace(/^laobos-/, "dsh-");
+    const link = join(dshHome, "node_modules", "@laobos", packageName);
+    await mkdir(dirname(link), { recursive: true, mode: 0o700 });
+    const info = await lstat(link).catch((error) => error?.code === "ENOENT" ? undefined : Promise.reject(error));
+    if (info?.isSymbolicLink()) {
+      const current = resolve(dirname(link), await readlink(link));
+      if (current === target) continue;
+      await unlink(link);
+    } else if (info) {
+      throw new Error(`DSH 本地插件位置已被其他文件占用：${link}`);
+    }
+    await symlink(target, link, "dir");
+  }
+  // 劳博士插件市场（独立仓库插件）
+  const marketTarget = await resolveMarketPluginDir(workspace);
+  if (marketTarget) {
+    const marketLink = join(dshHome, "node_modules", "@laobos", "dsh-market");
+    await mkdir(dirname(marketLink), { recursive: true, mode: 0o700 });
+    const marketInfo = await lstat(marketLink).catch((error) => error?.code === "ENOENT" ? undefined : Promise.reject(error));
+    if (marketInfo?.isSymbolicLink()) {
+      const current = resolve(dirname(marketLink), await readlink(marketLink));
+      if (current !== marketTarget) await unlink(marketLink);
+      else return;
+    } else if (marketInfo) {
+      throw new Error(`DSH 本地插件位置已被其他文件占用：${marketLink}`);
+    }
+    await symlink(marketTarget, marketLink, "dir");
+  } else {
+    console.warn("[laobos-market] 未找到插件目录，跳过链接（可设置 LAOBOS_MARKET_PLUGIN_DIR）。");
+  }
+}
+
+async function resolveMarketPluginDir(workspace) {
+  const candidates = [
+    process.env.LAOBOS_MARKET_PLUGIN_DIR,
+    resolve(projectRoot, "..", "..", "..", "..", "laoboshi_dsh_data", "v1", "dsh-plugin-market-laoboshi"),
+    workspace ? resolve(workspace, "dsh-plugin-market-laoboshi") : undefined,
+    join(projectRoot, "packages", "laobos-market"),
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      if ((await stat(candidate)).isDirectory()) return candidate;
+    } catch {}
+  }
+  return null;
+}
+
+function readWorkspace(arguments_) {
+  const forwarded = [];
+  let workspace = process.env.LAOBOS_WORKSPACE
+    ? resolve(process.env.LAOBOS_WORKSPACE)
+    : resolve(projectRoot, "..");
+
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index];
+
+    if (argument === "--workspace") {
+      const value = arguments_[index + 1];
+      if (!value) {
+        throw new Error("--workspace 需要一个目录路径");
+      }
+      workspace = resolve(value);
+      index += 1;
+      continue;
+    }
+
+    if (argument.startsWith("--workspace=")) {
+      workspace = resolve(argument.slice("--workspace=".length));
+      continue;
+    }
+
+    forwarded.push(argument);
+  }
+
+  return { forwarded, workspace };
+}
+
+async function main() {
+  const { forwarded, workspace } = readWorkspace(process.argv.slice(2));
+
+  await access(dshBin).catch(() => {
+    throw new Error("尚未安装 DSH 依赖，请先运行 npm install");
+  });
+  ensureNodePtySpawnHelper(projectRoot);
+
+  const workspaceStat = await stat(workspace).catch(() => undefined);
+  if (!workspaceStat?.isDirectory()) {
+    throw new Error(`工作区不存在或不是目录：${workspace}`);
+  }
+
+  const dshHome = defaultDshHome();
+  try {
+    await migratePiOnFirstRun({ dshHome });
+  } catch (error) {
+    console.warn(
+      `Pi 数据自动迁移失败，DSH 将继续启动；可稍后运行 npm run migrate:pi -- --apply。\n${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  await ensureLocalPlugin(dshHome, workspace);
+  const dshArguments = [
+    "--profile",
+    "web",
+    "--patch",
+    patchFile,
+    ...forwarded,
+  ];
+  const child = spawn(
+    process.execPath,
+    ["--expose-internals", dshBin, ...dshArguments],
+    {
+      cwd: workspace,
+      env: {
+        ...process.env,
+        DSH_HOME: dshHome,
+        DSH_TELEMETRY_DISABLED:
+          process.env.DSH_TELEMETRY_DISABLED || "1",
+      },
+      stdio: "inherit",
+    },
+  );
+
+  const forwardSignal = (signal) => {
+    if (!child.killed) {
+      child.kill(signal);
+    }
+  };
+
+  process.once("SIGINT", forwardSignal);
+  process.once("SIGTERM", forwardSignal);
+
+  child.once("error", (error) => {
+    console.error(`无法启动 DSH：${error.message}`);
+    process.exitCode = 1;
+  });
+
+  child.once("exit", (code, signal) => {
+    process.removeListener("SIGINT", forwardSignal);
+    process.removeListener("SIGTERM", forwardSignal);
+
+    if (signal) {
+      process.kill(process.pid, signal);
+      return;
+    }
+
+    process.exitCode = code ?? 1;
+  });
+}
+
+main().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});

@@ -1,0 +1,48 @@
+# 劳博士的产品级覆盖。核心运行时保持使用官方 DSH 包，便于后续升级。
+- id: permission
+  config:
+    defaultPreset: workspace-write
+    presets:
+      read-only:
+        sandbox: read-only
+        approval: ask
+        name: 只读
+        description: 仅允许读取工作区；所有越权操作都需要审批。
+      workspace-write:
+        sandbox: workspace-write
+        approval: ask
+        name: 工作区可写
+        description: 可修改当前工作区；敏感操作仍然需要审批。
+      danger-full-access:
+        sandbox: danger-full-access
+        approval: never
+        name: 完全访问
+        description: 关闭沙箱与交互审批，仅应在受信任环境中使用。
+
+- insert:
+    - id: laobos-system-tools
+      name: '@laobos/dsh-system-tools'
+      config:
+        databasePath: !!js dshHomePath('data/system-tools.db')
+        planPreset: read-only
+        fallbackPreset: workspace-write
+    - id: laobos-conversation-tools
+      name: '@laobos/dsh-conversation-tools'
+    - id: laobos-file-attachments
+      name: '@laobos/dsh-file-attachments'
+    - id: laobos-workspace-tools
+      name: '@laobos/dsh-workspace-tools'
+    - id: laobos-terminal-ui
+      name: '@laobos/dsh-terminal-ui'
+    - id: laobos-browserops
+      name: '@laobos/dsh-browserops'
+    - id: laobos-ssh
+      name: '@laobos/dsh-ssh'
+    - id: laobos-app-manager
+      name: '@laobos/dsh-app-manager'
+    - id: laobos-market
+      name: '@laobos/dsh-market'
+      config:
+        proxyUrl: http://127.0.0.1:7890
+        uploadOwner: Modole
+        profile: web
