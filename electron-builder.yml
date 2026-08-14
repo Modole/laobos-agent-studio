@@ -1,0 +1,51 @@
+appId: com.laobos.studio
+productName: 劳博士
+asar: false
+compression: maximum
+npmRebuild: true
+
+directories:
+  output: out/installers
+  buildResources: build
+
+files:
+  - "**/*"
+  - "!out{,/**}"
+  - "!dist{,/**}"
+  - "!dist-desktop{,/**}"
+  - "!outputs{,/**}"
+  - "!tests{,/**}"
+  - "!.dsh{,/**}"
+  - "!.git{,/**}"
+  - "!.github{,/**}"
+  - "!.next{,/**}"
+  - "!.vinext{,/**}"
+  - "!.wrangler{,/**}"
+
+mac:
+  icon: build/laobos-icon.icns
+  category: public.app-category.developer-tools
+  identity: null
+  hardenedRuntime: false
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  artifactName: "laobos-studio-${version}-macos-${arch}.${ext}"
+
+win:
+  icon: public/laobos-logo.png
+  executableName: laobos-studio
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: "laobos-studio-${version}-windows-${arch}-setup.${ext}"
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 劳博士
+  uninstallDisplayName: 劳博士
