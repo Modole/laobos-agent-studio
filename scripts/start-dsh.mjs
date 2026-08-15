@@ -1,35 +1,21 @@
 #!/usr/bin/env node
 
-import { access, lstat, mkdir, readlink, stat, symlink, unlink } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultDshHome, migratePiOnFirstRun } from "../migrations/auto-pi.mjs";
 import { ensureNodePtySpawnHelper } from "./ensure-node-pty-helper.mjs";
+import { bundledPluginMode, ensureBundledPlugins } from "../desktop/local-plugins.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDirectory, "..");
 process.env.LAOBOS_STUDIO_ROOT ??= projectRoot;
 const dshBin = join(projectRoot, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
 const patchFile = join(projectRoot, "config", "laobos.cordis.patch.yml");
-
-async function ensureLocalPlugin(dshHome) {
-  for (const pluginName of ["laobos-system-tools", "laobos-conversation-tools", "laobos-file-attachments", "laobos-workspace-tools", "laobos-terminal-ui", "laobos-browserops", "laobos-ssh", "laobos-app-manager", "laobos-market"]) {
-    const target = join(projectRoot, "packages", pluginName);
-    const packageName = pluginName.replace(/^laobos-/, "dsh-");
-    const link = join(dshHome, "node_modules", "@laobos", packageName);
-    await mkdir(dirname(link), { recursive: true, mode: 0o700 });
-    const info = await lstat(link).catch((error) => error?.code === "ENOENT" ? undefined : Promise.reject(error));
-    if (info?.isSymbolicLink()) {
-      const current = resolve(dirname(link), await readlink(link));
-      if (current === target) continue;
-      await unlink(link);
-    } else if (info) {
-      throw new Error(`DSH 本地插件位置已被其他文件占用：${link}`);
-    }
-    await symlink(target, link, "dir");
-  }
-}
+const platformPatchFile = process.platform === "win32"
+  ? join(projectRoot, "config", "laobos.windows.cordis.patch.yml")
+  : undefined;
 
 function readWorkspace(arguments_) {
   const forwarded = [];
@@ -82,12 +68,17 @@ async function main() {
       `Pi 数据自动迁移失败，DSH 将继续启动；可稍后运行 npm run migrate:pi -- --apply。\n${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  await ensureLocalPlugin(dshHome);
+  ensureBundledPlugins({
+    studioRoot: projectRoot,
+    dshHome,
+    mode: bundledPluginMode(),
+  });
   const dshArguments = [
     "--profile",
     "web",
     "--patch",
     patchFile,
+    ...(platformPatchFile ? ["--patch", platformPatchFile] : []),
     ...forwarded,
   ];
   const child = spawn(

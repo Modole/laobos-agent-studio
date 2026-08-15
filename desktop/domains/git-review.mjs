@@ -12,7 +12,7 @@ import {
   stageGit,
   syncGit,
   unstageGit,
-} from "../../shared/git-service.mjs";
+} from "../../packages/laobos-system-tools/lib/git-service.mjs";
 
 const channels = [
   "laobos:git:inspect",

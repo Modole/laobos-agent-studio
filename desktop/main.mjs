@@ -11,6 +11,7 @@ import {
   shell,
 } from "electron";
 import { startDshRuntime } from "./dsh-runtime.mjs";
+import { bundledPluginMode } from "./local-plugins.mjs";
 import { migratePiOnFirstRun } from "../migrations/auto-pi.mjs";
 import { registerDesktopDomains } from "./register-desktop-domains.mjs";
 
@@ -77,6 +78,7 @@ async function bootRuntime() {
     workspace,
     dshHome,
     electronRunAsNode: true,
+    pluginMode: bundledPluginMode({ packaged: app.isPackaged }),
   });
   runtimeUrl = await runtime.ready;
 
@@ -168,6 +170,7 @@ if (!hasSingleInstanceLock) {
       });
       createWindow();
     } catch (error) {
+      console.error("劳博士启动失败：", error);
       dialog.showErrorBox(
         "劳博士启动失败",
         error instanceof Error ? error.message : String(error),

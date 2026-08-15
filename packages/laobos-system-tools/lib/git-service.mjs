@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { realpath } from "node:fs/promises";
 
 const execFileAsync = promisify(execFile);
 const MAX_BUFFER = 8 * 1024 * 1024;

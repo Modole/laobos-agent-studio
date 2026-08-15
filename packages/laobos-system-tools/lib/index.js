@@ -16,7 +16,7 @@ import {
   stageGit,
   syncGit,
   unstageGit,
-} from "../../../shared/git-service.mjs";
+} from "./git-service.mjs";
 
 export const name = "laobos-system-tools";
 export const inject = ["tools", "webServer", "permissionPresets", "systemPrompt", "sessions"];

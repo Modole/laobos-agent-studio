@@ -19,6 +19,13 @@ export function ensureExecutableFile(filePath) {
   return false;
 }
 
+export function resolvePhysicalAsarPath(filePath) {
+  const archiveBoundary = `.asar${path.sep}`;
+  const archiveIndex = filePath.indexOf(archiveBoundary);
+  if (archiveIndex === -1) return filePath;
+  return `${filePath.slice(0, archiveIndex)}.asar.unpacked${path.sep}${filePath.slice(archiveIndex + archiveBoundary.length)}`;
+}
+
 export function ensureNodePtySpawnHelper(projectRoot) {
   if (process.platform !== "darwin") return undefined;
 
@@ -33,12 +40,12 @@ export function ensureNodePtySpawnHelper(projectRoot) {
   }
 
   const nodePtyRoot = path.dirname(path.dirname(nodePtyEntry));
-  const helperPath = path.join(
+  const helperPath = resolvePhysicalAsarPath(path.join(
     nodePtyRoot,
     "prebuilds",
     `${process.platform}-${process.arch}`,
     "spawn-helper",
-  );
+  ));
 
   try {
     ensureExecutableFile(helperPath);

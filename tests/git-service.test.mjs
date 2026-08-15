@@ -15,7 +15,7 @@ import {
   stageGit,
   syncGit,
   unstageGit,
-} from "../shared/git-service.mjs";
+} from "../packages/laobos-system-tools/lib/git-service.mjs";
 
 function git(cwd, ...args) {
   return execFileSync("git", args, { cwd, encoding: "utf8" });

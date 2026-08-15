@@ -1,9 +1,42 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createPackage } from "@electron/asar";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { cleanGeneratedFallback } from "../desktop/dsh-asar-bootstrap.mjs";
+import {
+  fileImportSpecifier,
+  summarizeDshFailureOutput,
+} from "../desktop/dsh-runtime.mjs";
 import { verifyPackagedRuntime } from "../scripts/verify-packaged-runtime.mjs";
+
+test("desktop runtime startup errors retain useful child-process output", () => {
+  assert.equal(
+    summarizeDshFailureOutput("\u001b[31mError: missing native package\u001b[0m\r\n"),
+    "Error: missing native package",
+  );
+  assert.equal(summarizeDshFailureOutput("abcdef", 4), "…cdef");
+});
+
+test("desktop runtime passes ESM preloads as file URLs", () => {
+  const specifier = fileImportSpecifier(path.resolve("resources", "app.asar", "desktop", "bootstrap.mjs"));
+  assert.match(specifier, /^file:\/\//);
+  assert.doesNotMatch(specifier, /^[a-zA-Z]:/);
+});
+
+test("packaged runtime removes stale generated profile links before healing", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "laobos-fallback-cleanup-"));
+  const fallback = path.join(root, "profiles", "node_modules");
+  const target = path.join(root, "old-app.asar", "node_modules", "plugin");
+  const link = path.join(fallback, "plugin");
+  await mkdir(fallback, { recursive: true });
+  await symlink(target, link);
+
+  cleanGeneratedFallback(fallback);
+  await assert.rejects(readFile(link), /ENOENT/);
+  await rm(root, { recursive: true, force: true });
+});
 
 test("desktop shell boots DSH directly with a sandboxed renderer", async () => {
   const mainSource = await readFile(
@@ -17,6 +50,15 @@ test("desktop shell boots DSH directly with a sandboxed renderer", async () => {
   assert.match(mainSource, /migratePiOnFirstRun/);
   assert.match(mainSource, /setPermissionRequestHandler/);
   assert.doesNotMatch(mainSource, /bridge-process|resolvePiBinary|PI_STUDIO_PI_BIN/);
+
+  const runtimeSource = await readFile(
+    new URL("../desktop/dsh-runtime.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.match(runtimeSource, /dsh-asar-bootstrap\.mjs/);
+  assert.match(runtimeSource, /"--import"/);
+  assert.match(runtimeSource, /fileImportSpecifier\(asarBootstrap\)/);
+  assert.match(runtimeSource, /laobos\.windows\.cordis\.patch\.yml/);
 });
 
 test("desktop mode does not expose the manual Bridge connection dialog", async () => {
@@ -52,11 +94,36 @@ test("desktop release configuration builds native macOS and Windows installers",
   assert.match(builderConfig, /artifactName: "laobos-studio-\$\{version\}-macos-\$\{arch\}\.\$\{ext\}"/);
   assert.match(builderConfig, /target: nsis[\s\S]*arch:\n\s+- x64/);
   assert.match(builderConfig, /artifactName: "laobos-studio-\$\{version\}-windows-\$\{arch\}-setup\.\$\{ext\}"/);
+  assert.match(builderConfig, /asar: true/);
+  assert.match(builderConfig, /asarUnpack:[\s\S]*"packages\/\*\*"/);
+  assert.match(builderConfig, /compression: normal/);
+  assert.match(builderConfig, /npmRebuild: false/);
+  assert.match(builderConfig, /!node_modules\/cpu-features/);
+  assert.match(builderConfig, /!node_modules\/node-pty\/prebuilds\/darwin-/);
+  assert.equal(builderConfig.match(/!resources\/pi/g)?.length, 2);
   assert.match(workflow, /runs-on: macos-15/);
   assert.match(workflow, /runs-on: windows-latest/);
   assert.equal(workflow.match(/npm run audit:public/g)?.length, 2);
   assert.equal(workflow.match(/verify-packaged-runtime\.mjs/g)?.length, 2);
+  assert.equal(workflow.match(/app\.asar/g)?.length, 2);
   assert.equal(workflow.match(/actions\/upload-artifact@v7/g)?.length, 2);
+});
+
+test("packaged runtime verification supports an ASAR application", async () => {
+  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "laobos-asar-runtime-test-"));
+  const appDirectory = path.join(fixtureRoot, "app");
+  const archivePath = path.join(fixtureRoot, "app.asar");
+
+  try {
+    await mkdir(appDirectory, { recursive: true });
+    await writeFile(path.join(appDirectory, "package.json"), JSON.stringify({
+      name: "fixture-asar-app",
+    }));
+    await createPackage(appDirectory, archivePath);
+    assert.deepEqual(await verifyPackagedRuntime(archivePath), { packageCount: 1 });
+  } finally {
+    await rm(fixtureRoot, { recursive: true, force: true });
+  }
 });
 
 test("packaged runtime verification rejects a missing required peer dependency", async () => {

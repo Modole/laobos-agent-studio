@@ -19,7 +19,7 @@ jobs:
       - run: npm ci
       - run: npm run audit:public
       - run: npm run desktop:installer -- --mac dmg --arm64
-      - run: node scripts/verify-packaged-runtime.mjs "out/installers/mac-arm64/劳博士.app/Contents/Resources/app"
+      - run: node scripts/verify-packaged-runtime.mjs "out/installers/mac-arm64/劳博士.app/Contents/Resources/app.asar"
       - run: test "$(find out/installers -maxdepth 1 -name 'laobos-studio-*-macos-arm64.dmg' | wc -l | tr -d ' ')" = "1"
       - uses: actions/upload-artifact@v7
         with:
@@ -41,7 +41,7 @@ jobs:
       - run: npm ci
       - run: npm run audit:public
       - run: npm run desktop:installer -- --win nsis --x64
-      - run: node scripts/verify-packaged-runtime.mjs "out/installers/win-unpacked/resources/app"
+      - run: node scripts/verify-packaged-runtime.mjs "out/installers/win-unpacked/resources/app.asar"
       - shell: pwsh
         run: |
           $installers = @(Get-ChildItem "out/installers/laobos-studio-*-windows-x64-setup.exe")

@@ -1,0 +1,11 @@
+# Windows packaged Electron launches the official native picker's COM worker
+# as a child process. Keep directory selection in-process on Windows so ASAR
+# packaging and native worker lifecycle cannot prevent workspace selection.
+- id: directory-picker
+  disabled: true
+
+- insert:
+    - id: laobos-directory-picker-browse-host
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+    - id: laobos-directory-picker-browse-client
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
