@@ -1,12 +1,29 @@
 import { spawn } from "node:child_process";
-import { lstatSync, mkdirSync, readlinkSync, symlinkSync, unlinkSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { ensureNodePtySpawnHelper } from "../scripts/ensure-node-pty-helper.mjs";
+import { ensureBundledPlugins } from "./local-plugins.mjs";
 
 const READY_PATTERN = /dsh web:\s+(http:\/\/[^\s]+)/;
+const ANSI_PATTERN = /\u001B\[[0-?]*[ -\/]*[@-~]/g;
 
 export function extractDshUrl(output) {
   return READY_PATTERN.exec(output)?.[1];
+}
+
+export function summarizeDshFailureOutput(output, maximumLength = 4_000) {
+  const cleaned = String(output)
+    .replace(ANSI_PATTERN, "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+  if (!cleaned) return "";
+  return cleaned.length <= maximumLength
+    ? cleaned
+    : `…${cleaned.slice(-maximumLength)}`;
+}
+
+export function fileImportSpecifier(filePath) {
+  return pathToFileURL(filePath).href;
 }
 
 export function startDshRuntime({
@@ -16,35 +33,28 @@ export function startDshRuntime({
   workspace,
   dshHome,
   electronRunAsNode = false,
+  pluginMode = "link",
+  platform = process.platform,
   startupTimeoutMs = 30_000,
 }) {
   const studioRoot = resolve(dirname(patchFile), "..");
   ensureNodePtySpawnHelper(studioRoot);
-  for (const pluginName of ["laobos-system-tools", "laobos-conversation-tools", "laobos-file-attachments", "laobos-workspace-tools", "laobos-terminal-ui", "laobos-browserops", "laobos-ssh", "laobos-app-manager", "laobos-market"]) {
-    const pluginTarget = resolve(studioRoot, "packages", pluginName);
-    const pluginLink = resolve(dshHome, "node_modules", "@laobos", pluginName.replace(/^laobos-/, "dsh-"));
-    mkdirSync(dirname(pluginLink), { recursive: true, mode: 0o700 });
-    let pluginInfo;
-    try { pluginInfo = lstatSync(pluginLink); }
-    catch (error) { if (error?.code !== "ENOENT") throw error; }
-    if (pluginInfo?.isSymbolicLink()) {
-      const current = resolve(dirname(pluginLink), readlinkSync(pluginLink));
-      if (current !== pluginTarget) unlinkSync(pluginLink);
-      else pluginInfo = undefined;
-    } else if (pluginInfo) {
-      throw new Error(`DSH 本地插件位置已被其他文件占用：${pluginLink}`);
-    }
-    if (pluginInfo !== undefined || !lstatExists(pluginLink)) {
-      symlinkSync(pluginTarget, pluginLink, "dir");
-    }
-  }
+  ensureBundledPlugins({ studioRoot, dshHome, mode: pluginMode });
+  const asarBootstrap = resolve(studioRoot, "desktop", "dsh-asar-bootstrap.mjs");
+  const asarBootstrapUrl = fileImportSpecifier(asarBootstrap);
+  const platformPatchFile = platform === "win32"
+    ? resolve(studioRoot, "config", "laobos.windows.cordis.patch.yml")
+    : undefined;
   const arguments_ = [
+    "--import",
+    asarBootstrapUrl,
     "--expose-internals",
     dshBin,
     "--profile",
     "web",
     "--patch",
     patchFile,
+    ...(platformPatchFile ? ["--patch", platformPatchFile] : []),
     "--host",
     "127.0.0.1",
     "--port",
@@ -129,11 +139,12 @@ export function startDshRuntime({
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      reject(
-        new Error(
-          `DSH 本地运行时提前退出（code=${String(code)}, signal=${String(signal)}）。`,
-        ),
-      );
+      const detail = summarizeDshFailureOutput(accumulatedOutput);
+      reject(new Error(
+        `DSH 本地运行时提前退出（code=${String(code)}, signal=${String(signal)}）。${
+          detail ? `\n\n运行时输出：\n${detail}` : ""
+        }`,
+      ));
     });
   });
 
@@ -155,9 +166,4 @@ export function startDshRuntime({
   }
 
   return { child, close, ready };
-}
-
-function lstatExists(filePath) {
-  try { lstatSync(filePath); return true; }
-  catch (error) { if (error?.code === "ENOENT") return false; throw error; }
 }

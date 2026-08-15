@@ -1,6 +1,6 @@
 {
   "name": "laobos-agent-studio",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "劳博士：基于 DeepSeek Harness 的本地 Agent 桌面客户端",
   "author": "Modole contributors",
   "license": "SEE LICENSE IN LICENSE",
@@ -49,8 +49,10 @@
     "@deepseek-ai/dsh-atomic-write": "0.1.0-rc.6",
     "@deepseek-ai/dsh-bash-local": "0.1.0-rc.6",
     "@deepseek-ai/dsh-code-runtime": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-directory-picker-browse": "0.1.0-rc.6",
     "@deepseek-ai/dsh-compaction": "0.1.0-rc.6",
     "@deepseek-ai/dsh-fs": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-host-directory-picker-browse": "0.1.0-rc.6",
     "@deepseek-ai/dsh-invariants": "0.1.0-rc.6",
     "@deepseek-ai/dsh-output-retention": "0.1.0-rc.6",
     "@deepseek-ai/dsh-sandbox": "0.1.0-rc.6",
@@ -76,6 +78,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
+    "@electron/asar": "4.2.1",
     "@electron/packager": "20.0.4",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",

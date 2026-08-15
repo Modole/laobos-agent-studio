@@ -1,8 +1,10 @@
 appId: com.laobos.studio
 productName: 劳博士
-asar: false
-compression: maximum
-npmRebuild: true
+asar: true
+asarUnpack:
+  - "packages/**"
+compression: normal
+npmRebuild: false
 
 directories:
   output: out/installers
@@ -21,6 +23,10 @@ files:
   - "!.next{,/**}"
   - "!.vinext{,/**}"
   - "!.wrangler{,/**}"
+  - "!resources/pi{,/**}"
+  - "!node_modules/cpu-features{,/**}"
+  - "!node_modules/node-pty/build{,/**}"
+  - "!node_modules/ssh2/lib/protocol/crypto/build{,/**}"
 
 mac:
   icon: build/laobos-icon.icns
@@ -36,6 +42,32 @@ mac:
 win:
   icon: public/laobos-logo.png
   executableName: laobos-studio
+  files:
+    - "**/*"
+    - "!out{,/**}"
+    - "!dist{,/**}"
+    - "!dist-desktop{,/**}"
+    - "!outputs{,/**}"
+    - "!tests{,/**}"
+    - "!.dsh{,/**}"
+    - "!.git{,/**}"
+    - "!.github{,/**}"
+    - "!.next{,/**}"
+    - "!.vinext{,/**}"
+    - "!.wrangler{,/**}"
+    - "!resources/pi{,/**}"
+    - "!node_modules/cpu-features{,/**}"
+    - "!node_modules/node-pty/build{,/**}"
+    - "!node_modules/ssh2/lib/protocol/crypto/build{,/**}"
+    - "!node_modules/@img/sharp-darwin-*{,/**}"
+    - "!node_modules/@img/sharp-libvips-darwin-*{,/**}"
+    - "!node_modules/@koromix/koffi-darwin-*{,/**}"
+    - "!node_modules/@next/swc-darwin-*{,/**}"
+    - "!node_modules/@vscode/ripgrep-darwin-*{,/**}"
+    - "!node_modules/node-addon-require-builtin-darwin-*{,/**}"
+    - "!node_modules/node-pty/prebuilds/darwin-*{,/**}"
+    - "!node_modules/node-pty/prebuilds/win32-arm64{,/**}"
+    - "!node_modules/node-pty/third_party/conpty/*/win10-arm64{,/**}"
   target:
     - target: nsis
       arch:

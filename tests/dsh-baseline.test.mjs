@@ -12,6 +12,7 @@ import {
 import {
   ensureExecutableFile,
   ensureNodePtySpawnHelper,
+  resolvePhysicalAsarPath,
 } from "../scripts/ensure-node-pty-helper.mjs";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
@@ -38,6 +39,19 @@ test("the node-pty spawn helper permission is repaired deterministically", async
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
+});
+
+test("native helpers inside ASAR packages resolve to their physical unpacked path", () => {
+  const packaged = join("resources", "app.asar", "node_modules", "node-pty", "spawn-helper");
+  const expected = join(
+    "resources",
+    "app.asar.unpacked",
+    "node_modules",
+    "node-pty",
+    "spawn-helper",
+  );
+  assert.equal(resolvePhysicalAsarPath(packaged), expected);
+  assert.equal(resolvePhysicalAsarPath(expected), expected);
 });
 
 test(
@@ -249,6 +263,29 @@ test("composed web profile contains safety, approval and mode UI", async () => {
       assert.match(composed, new RegExp(`id:\\s+${pluginId}(?:\\s|$)`));
     }
     assert.match(composed, /defaultPreset:\s+workspace-write/);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("Windows desktop composition uses the in-app directory browser", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "laobos-win-picker-test-"));
+  try {
+    const result = spawnSync(process.execPath, [
+      join(projectRoot, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js"),
+      "--profile", "web",
+      "--patch", join(projectRoot, "config", "laobos.cordis.patch.yml"),
+      "--patch", join(projectRoot, "config", "laobos.windows.cordis.patch.yml"),
+      "--dump-config",
+    ], {
+      env: { ...process.env, DSH_HOME: join(temporaryRoot, "home") },
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /id:\s+laobos-directory-picker-browse-host/);
+    assert.match(result.stdout, /id:\s+laobos-directory-picker-browse-client/);
+    assert.match(result.stdout, /id:\s+directory-picker[\s\S]*?disabled:\s+true/);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }

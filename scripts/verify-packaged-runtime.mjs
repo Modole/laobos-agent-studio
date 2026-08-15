@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractAll } from "@electron/asar";
 
 const platformProvidedPackages = new Set(["electron"]);
 
@@ -67,8 +69,7 @@ async function resolvesInsideApp(appDirectory, packageDirectory, dependency) {
   return false;
 }
 
-export async function verifyPackagedRuntime(appDirectoryInput) {
-  const appDirectory = path.resolve(appDirectoryInput);
+async function verifyAppDirectory(appDirectory) {
   const rootManifestPath = path.join(appDirectory, "package.json");
   if (!(await exists(rootManifestPath))) {
     throw new Error(`安装包应用目录无效，缺少 package.json：${appDirectory}`);
@@ -100,12 +101,35 @@ export async function verifyPackagedRuntime(appDirectoryInput) {
   return { packageCount: packageRoots.size };
 }
 
+export async function verifyPackagedRuntime(appPathInput) {
+  const appPath = path.resolve(appPathInput);
+  const appInfo = await stat(appPath).catch((error) => {
+    if (error?.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (!appInfo) throw new Error(`安装包应用路径不存在：${appPath}`);
+  if (appInfo.isDirectory()) return verifyAppDirectory(appPath);
+  if (!appInfo.isFile() || path.extname(appPath) !== ".asar") {
+    throw new Error(`安装包应用路径必须是 resources/app 目录或 app.asar 文件：${appPath}`);
+  }
+
+  const extractedDirectory = await mkdtemp(path.join(tmpdir(), "laobos-runtime-verify-"));
+  try {
+    extractAll(appPath, extractedDirectory);
+    return await verifyAppDirectory(extractedDirectory);
+  } finally {
+    await rm(extractedDirectory, { recursive: true, force: true });
+  }
+}
+
 const isCommandLineEntry = process.argv[1]
   && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isCommandLineEntry) {
-  const appDirectory = process.argv[2];
-  if (!appDirectory) throw new Error("用法：node scripts/verify-packaged-runtime.mjs <resources/app>");
-  const result = await verifyPackagedRuntime(appDirectory);
+  const appPath = process.argv[2];
+  if (!appPath) {
+    throw new Error("用法：node scripts/verify-packaged-runtime.mjs <resources/app|resources/app.asar>");
+  }
+  const result = await verifyPackagedRuntime(appPath);
   console.log(`安装包运行时依赖完整：已检查 ${result.packageCount} 个包。`);
 }
