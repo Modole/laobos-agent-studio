@@ -65,6 +65,7 @@ export function startDshRuntime({
     env: {
       ...process.env,
       LAOBOS_STUDIO_ROOT: studioRoot,
+      LAOBOS_SHELL_STATE_PATH: resolve(dshHome, "data", "laobos-shell-state.json"),
       DSH_HOME: dshHome,
       DSH_TELEMETRY_DISABLED:
         process.env.DSH_TELEMETRY_DISABLED || "1",

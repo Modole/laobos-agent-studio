@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const entries = [
+  ["packages/laobos-shell/src/client.jsx", "packages/laobos-shell/lib/client.js"],
   ["packages/laobos-file-attachments/src/client.jsx", "packages/laobos-file-attachments/lib/client.js"],
   ["packages/laobos-workspace-tools/src/client.jsx", "packages/laobos-workspace-tools/lib/client.js"],
   ["packages/laobos-terminal-ui/src/client.jsx", "packages/laobos-terminal-ui/lib/client.js"],

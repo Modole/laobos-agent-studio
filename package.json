@@ -65,6 +65,8 @@
     "@deepseek-ai/dsh-subprocess": "0.1.0-rc.6",
     "@deepseek-ai/dsh-timeout": "0.1.0-rc.6",
     "@deepseek-ai/dsh-workflow": "0.1.0-rc.6",
+    "@laobos/dsh-performance": "file:packages/laobos-performance",
+    "@laobos/dsh-shell": "file:packages/laobos-shell",
     "@laobos/dsh-system-tools": "file:packages/laobos-system-tools",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",

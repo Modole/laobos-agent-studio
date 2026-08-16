@@ -38,6 +38,22 @@ test("packaged runtime removes stale generated profile links before healing", as
   await rm(root, { recursive: true, force: true });
 });
 
+test("development runtime removes ASAR client proxies before DSH heals links", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "laobos-proxy-cleanup-"));
+  const fallback = path.join(root, "profiles", "node_modules");
+  const proxy = path.join(fallback, "@deepseek-ai", "dsh-cordis-client-runner");
+  const regularPackage = path.join(fallback, "third-party-package");
+  await mkdir(proxy, { recursive: true });
+  await mkdir(regularPackage, { recursive: true });
+  await writeFile(path.join(proxy, ".laobos-asar-client-proxy"), "@deepseek-ai/dsh-cordis-client-runner\n");
+  await writeFile(path.join(regularPackage, "package.json"), "{}\n");
+
+  cleanGeneratedFallback(fallback);
+  await assert.rejects(readFile(path.join(proxy, ".laobos-asar-client-proxy")), /ENOENT/);
+  assert.equal(await readFile(path.join(regularPackage, "package.json"), "utf8"), "{}\n");
+  await rm(root, { recursive: true, force: true });
+});
+
 test("desktop shell boots DSH directly with a sandboxed renderer", async () => {
   const mainSource = await readFile(
     new URL("../desktop/main.mjs", import.meta.url),
@@ -49,6 +65,8 @@ test("desktop shell boots DSH directly with a sandboxed renderer", async () => {
   assert.match(mainSource, /startDshRuntime/);
   assert.match(mainSource, /migratePiOnFirstRun/);
   assert.match(mainSource, /setPermissionRequestHandler/);
+  assert.match(mainSource, /app\.setPath\("userData", path\.join\(app\.getPath\("appData"\), "劳博士 Dev"\)\)/);
+  assert.match(mainSource, /const productName = isDevelopment \? "劳博士（开发版）" : "劳博士"/);
   assert.doesNotMatch(mainSource, /bridge-process|resolvePiBinary|PI_STUDIO_PI_BIN/);
 
   const runtimeSource = await readFile(

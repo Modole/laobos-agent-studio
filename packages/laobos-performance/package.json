@@ -1,0 +1,12 @@
+{
+  "name": "@laobos/dsh-performance",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  }
+}
