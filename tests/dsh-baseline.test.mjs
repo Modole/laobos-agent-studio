@@ -182,6 +182,8 @@ test("the 劳博士 browser plugin injects Cordis services rather than package i
   );
   assert.match(client, /const inject = \["slots", "sessions"\]/);
   assert.match(client, /const brandName = "劳博士"/);
+  assert.match(client, /svg\.dataset\.laobosBrandIcon = "true"/);
+  assert.match(client, /transform:scaleX\(-1\)/);
   assert.match(client, /document\.title = brandName/);
   assert.match(client, /brand\/manifest\.webmanifest/);
   assert.match(client, /dataset\.laobosMainBrand = "true"/);

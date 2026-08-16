@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("laobosDesktop", Object.freeze({
     browserOps: true,
     ssh: true,
     apps: true,
+    shellManager: true,
   }),
   pdf: Object.freeze({
     exportConversation: (input) => invoke("laobos:pdf:export-conversation", input),
@@ -84,6 +85,18 @@ contextBridge.exposeInMainWorld("laobosDesktop", Object.freeze({
       const wrapped = (_event, payload) => listener(payload);
       ipcRenderer.on("laobos:browserops:state", wrapped);
       return () => ipcRenderer.removeListener("laobos:browserops:state", wrapped);
+    },
+  }),
+  shell: Object.freeze({
+    status: () => invoke("laobos:shell:status"),
+    refresh: () => invoke("laobos:shell:refresh"),
+    installWsl: (distribution) => invoke("laobos:shell:install-wsl", { distribution }),
+    initializeWsl: () => invoke("laobos:shell:initialize-wsl"),
+    repairPrompt: () => invoke("laobos:shell:repair-prompt"),
+    onState: (listener) => {
+      const wrapped = (_event, payload) => listener(payload);
+      ipcRenderer.on("laobos:shell:state", wrapped);
+      return () => ipcRenderer.removeListener("laobos:shell:state", wrapped);
     },
   }),
   ssh: Object.freeze({

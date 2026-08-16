@@ -12,7 +12,7 @@ DSH 官方 Web UI
       │  loopback HTTP
       ▼
 DeepSeek Harness 0.1.0-rc.6
-      ├─ Agent presets（标准 / PTC / 极简 / 创造）
+      ├─ Agent presets（标准 / PTC / 极简 / 创造 / 性能实验）
       ├─ Sandbox + Approval + Permission presets
       ├─ Plan 模式安全联动
       └─ 劳博士项目资源插件（知识库 / 工作流 / Skills / MCP）
@@ -39,6 +39,8 @@ Electron 开发模式：
 npm run desktop:dev
 ```
 
+开发版使用“劳博士（开发版）”窗口标题和独立的应用数据目录，因此可以与已安装的正式版同时运行，不会因 Electron 单实例锁而误唤起旧安装版。macOS 开发数据位于 `~/Library/Application Support/劳博士 Dev`。
+
 ## 桌面安装包
 
 公开发布提供两个原生安装包：macOS Apple 芯片版（DMG）与 Windows x64 版（NSIS EXE）。两者都由 GitHub Actions 在对应系统的原生 Runner 上构建，避免原生模块交叉编译导致不兼容。
@@ -62,7 +64,7 @@ npm test
 npm run lint
 ```
 
-## 四种 Agent 模式
+## 五种 Agent 模式
 
 项目直接使用 DSH 官方 presets：
 
@@ -72,8 +74,11 @@ npm run lint
 | `code` | PTC 模式 | 代码与工具密集任务 |
 | `minimal` | 极简模式 | 更少上下文与更轻执行 |
 | `cordis` | 创造模式 | Cordis / 创造型工作流 |
+| `performance` | 性能模式（实验） | 首轮对齐官方 Minimal，之后保留精简常驻工具并按需解锁完整能力；V4 Pro 建议使用 max 推理等级 |
 
 模式选择、会话、模型配置和运行状态均由 DSH 官方 UI 管理。
+
+性能模式作为劳博士只读系统 preset 随软件安装，不覆盖官方极简模式。macOS/Linux 使用官方持久 Bash；Windows 通过 `@laobos/dsh-shell` 优先选择持久 WSL Bash，然后降级到持久 Git Bash，最后使用 PowerShell 兼容模式。Shell 后端只在命令尚未开始时故障转移，避免重复执行可能已经产生副作用的命令。
 
 ## 安全审批
 
@@ -150,6 +155,7 @@ macOS 默认数据目录：
 - 浏览器插件：使用隔离的 `WebContentsView` 预览 HTTP(S) 地址；BrowserOps daemon 仅在用户点击后启动，并可随时停止
 - SSH 插件：密码和私钥使用系统 `safeStorage` 加密，主机密钥采用 TOFU 校验，发生变更时阻止连接
 - 应用管理插件：登记、探测、启动、停止和查看日志；进程始终以 `shell: false` 启动，“移出管理”不会删除项目文件
+- Shell 与 WSL：自动检测 Windows 的 WSL、Linux 发行版、Git Bash 与 PowerShell；设置页提供需 UAC 确认的 WSL/Ubuntu 安装、分阶段进度、重启恢复和可编辑的标准模式诊断对话
 
 删除的会话会先归档，再移动到 DSH Home 下的劳博士回收站；不会直接永久擦除。Terminal、BrowserOps、SSH 和应用管理均为独立 DSH 客户端插件，配置位于 `config/laobos.cordis.patch.yml`。修改终端或 SSH 的 JSX 源码后，可单独重建浏览器插件：
 

@@ -15,6 +15,8 @@ import path from "node:path";
 import { resolvePhysicalAsarPath } from "../scripts/ensure-node-pty-helper.mjs";
 
 export const bundledPluginNames = [
+  "laobos-performance",
+  "laobos-shell",
   "laobos-system-tools",
   "laobos-conversation-tools",
   "laobos-file-attachments",

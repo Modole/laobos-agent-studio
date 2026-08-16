@@ -88,6 +88,7 @@ async function main() {
       cwd: workspace,
       env: {
         ...process.env,
+        LAOBOS_SHELL_STATE_PATH: join(dshHome, "data", "laobos-shell-state.json"),
         DSH_HOME: dshHome,
         DSH_TELEMETRY_DISABLED:
           process.env.DSH_TELEMETRY_DISABLED || "1",

@@ -76,12 +76,19 @@ function writeClientProxy(target, link, packageName) {
 const studioRoot = process.env.LAOBOS_STUDIO_ROOT;
 const dshHome = process.env.DSH_HOME;
 
+// A packaged run writes small real-directory proxies because operating-system
+// symlinks cannot target files inside app.asar.  When the same DSH home is
+// later opened from a source checkout, dsh-app-boot expects those paths to be
+// symlinks again.  Remove our marked proxies in both modes before DSH heals the
+// generated fallback tree.
+if (dshHome) {
+  cleanGeneratedFallback(path.resolve(dshHome, "profiles", "node_modules"));
+}
+
 if (studioRoot?.endsWith(".asar") && dshHome) {
   const fallbackDirectory = path.resolve(dshHome, "profiles", "node_modules");
   const installationPackages = new Set();
   const originalSymlinkSync = fs.symlinkSync;
-  cleanGeneratedFallback(fallbackDirectory);
-
   // DSH normally maintains filesystem links for its in-box packages. An ASAR
   // package is a virtual directory, so an operating-system link to its
   // contents is necessarily dangling. Replace only those generated links with

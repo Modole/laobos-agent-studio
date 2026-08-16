@@ -4,6 +4,7 @@ import { registerAppsIpc } from "./domains/apps.mjs";
 import { DesktopSettingsStore } from "./domains/desktop-settings.mjs";
 import { registerGitReviewIpc } from "./domains/git-review.mjs";
 import { registerSessionTrashIpc } from "./domains/session-trash.mjs";
+import { registerShellIpc } from "./domains/shell.mjs";
 import { registerSshIpc } from "./domains/ssh.mjs";
 import { registerTerminalIpc } from "./domains/terminal.mjs";
 import { registerWorkspaceFilesIpc } from "./domains/workspace-files.mjs";
@@ -22,6 +23,7 @@ export function registerDesktopDomains(options) {
     registerSessionTrashIpc({ ...options, authorize }),
     registerWorkspaceFilesIpc({ ...options, authorize, settings }),
     registerGitReviewIpc({ ...options, authorize }),
+    registerShellIpc({ ...options, authorize }),
     registerTerminalIpc({ ...options, authorize }),
     registerSshIpc({ ...options, authorize }),
   ];

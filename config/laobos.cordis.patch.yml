@@ -20,6 +20,10 @@
         description: 关闭沙箱与交互审批，仅应在受信任环境中使用。
 
 - insert:
+    - id: laobos-performance
+      name: '@laobos/dsh-performance'
+    - id: laobos-shell
+      name: '@laobos/dsh-shell'
     - id: laobos-system-tools
       name: '@laobos/dsh-system-tools'
       config:

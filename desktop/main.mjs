@@ -15,7 +15,16 @@ import { bundledPluginMode } from "./local-plugins.mjs";
 import { migratePiOnFirstRun } from "../migrations/auto-pi.mjs";
 import { registerDesktopDomains } from "./register-desktop-domains.mjs";
 
-app.setName("劳博士");
+const isDevelopment = !app.isPackaged;
+const productName = isDevelopment ? "劳博士（开发版）" : "劳博士";
+
+app.setName(productName);
+if (isDevelopment) {
+  // Keep the development process independent from an installed release. Electron's
+  // single-instance lock is scoped by userData, so sharing it silently focuses the
+  // installed app and makes local code changes appear to be missing.
+  app.setPath("userData", path.join(app.getPath("appData"), "劳博士 Dev"));
+}
 
 let mainWindow;
 let runtime;
@@ -110,7 +119,7 @@ function createWindow() {
     minWidth: 940,
     minHeight: 640,
     show: false,
-    title: "劳博士",
+    title: productName,
     icon: path.join(app.getAppPath(), "public", "laobos-logo.png"),
     backgroundColor: "#f5f5f3",
     webPreferences: {
@@ -126,7 +135,7 @@ function createWindow() {
   mainWindow.once("ready-to-show", () => mainWindow?.show());
   mainWindow.on("page-title-updated", (event) => {
     event.preventDefault();
-    mainWindow?.setTitle("劳博士");
+    mainWindow?.setTitle(productName);
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://")) void shell.openExternal(url);
