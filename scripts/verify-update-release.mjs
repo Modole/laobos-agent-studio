@@ -2,7 +2,45 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import YAML from "yaml";
+
+function parseScalar(value) {
+  const scalar = value.trim();
+  if (scalar.startsWith('"') && scalar.endsWith('"')) return JSON.parse(scalar);
+  if (scalar.startsWith("'") && scalar.endsWith("'")) {
+    return scalar.slice(1, -1).replaceAll("''", "'");
+  }
+  return scalar;
+}
+
+function parseUpdateMetadata(source, name) {
+  const lines = source.split(/\r?\n/u);
+  const versionLine = lines.find((line) => /^version\s*:/u.test(line));
+  const version = versionLine ? parseScalar(versionLine.replace(/^version\s*:/u, "")) : undefined;
+  const files = [];
+  let inFiles = false;
+  let currentFile;
+
+  for (const line of lines) {
+    if (/^files\s*:\s*$/u.test(line)) {
+      inFiles = true;
+      continue;
+    }
+    if (!inFiles) continue;
+    if (line.trim() && !/^\s/u.test(line)) break;
+
+    const url = line.match(/^\s*-\s+url\s*:\s*(.+?)\s*$/u);
+    if (url) {
+      currentFile = { url: parseScalar(url[1]) };
+      files.push(currentFile);
+      continue;
+    }
+    const sha512 = line.match(/^\s+sha512\s*:\s*(.+?)\s*$/u);
+    if (sha512 && currentFile) currentFile.sha512 = parseScalar(sha512[1]);
+  }
+
+  if (version === undefined) throw new Error(`${name} 缺少版本号。`);
+  return { version, files };
+}
 
 const directory = path.resolve(process.argv[2] || "out/installers");
 const expectedVersion = process.argv[3] || "";
@@ -10,7 +48,7 @@ const names = new Set(await readdir(directory));
 
 for (const name of ["latest.yml", "latest-mac.yml"]) {
   if (!names.has(name)) throw new Error(`缺少更新元数据：${name}`);
-  const document = YAML.parse(await readFile(path.join(directory, name), "utf8"));
+  const document = parseUpdateMetadata(await readFile(path.join(directory, name), "utf8"), name);
   if (expectedVersion && document?.version !== expectedVersion) {
     throw new Error(`${name} 版本 ${String(document?.version)} 与 ${expectedVersion} 不一致。`);
   }

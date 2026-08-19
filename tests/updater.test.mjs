@@ -217,6 +217,11 @@ test("release validator rejects missing files and accepts complete update metada
   const temporary = await mkdtemp(path.join(os.tmpdir(), "laobos-release-"));
   const sha512 = "a".repeat(88);
   try {
+    const validatorSource = await readFile(
+      path.join(projectRoot, "scripts/verify-update-release.mjs"),
+      "utf8",
+    );
+    assert.doesNotMatch(validatorSource, /from ["']yaml["']/u);
     const artifacts = [
       "laobos-studio-0.3.0-macos-arm64.dmg",
       "laobos-studio-0.3.0-macos-arm64.zip",
