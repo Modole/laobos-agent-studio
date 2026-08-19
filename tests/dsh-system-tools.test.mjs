@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -13,6 +13,7 @@ import {
   DEFAULT_SYSTEM_PROMPT,
   apply as applySystemTools,
   formatUserSystemPrompt,
+  gitWorkspace,
 } from "../packages/laobos-system-tools/lib/index.js";
 import { SystemToolsStore } from "../packages/laobos-system-tools/lib/store.js";
 
@@ -73,6 +74,24 @@ const definition = {
   ],
 };
 
+test("system Git tools trust the current DSH session workspace across Windows drives", async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "laobos-session-workspace-"));
+  const startup = path.join(temporary, "Documents");
+  const session = path.join(temporary, "D-drive", "project");
+  await mkdir(startup, { recursive: true });
+  await mkdir(session, { recursive: true });
+  try {
+    assert.equal(gitWorkspace(startup, {
+      agent: { session: { header: { cwd: session } } },
+    }), await realpath(session));
+    assert.throws(() => gitWorkspace(startup, {
+      agent: { session: { header: { cwd: path.join(temporary, "missing") } } },
+    }), /当前会话工作区不可访问/u);
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
 test("DSH system-tools store preserves knowledge CRUD/search and published workflow execution", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "laobos-system-tools-"));
   const store = new SystemToolsStore(path.join(root, "system-tools.db"));
@@ -88,9 +107,17 @@ test("DSH system-tools store preserves knowledge CRUD/search and published workf
       collectionId: collection.id,
       title: "发布规范",
       content: "生产发布必须经过安全审批，并且保留回滚方案。",
+      imageUrls: ["https://example.com/release-checklist.png"],
     });
     assert.equal(document.chunkCount, 1);
-    assert.match(store.searchKnowledge({ query: "安全审批" })[0].content, /回滚方案/);
+    assert.deepEqual(document.imageUrls, ["https://example.com/release-checklist.png"]);
+    const knowledgeResult = store.searchKnowledge({ query: "安全审批" })[0];
+    assert.match(knowledgeResult.content, /回滚方案/);
+    assert.deepEqual(knowledgeResult.imageUrls, ["https://example.com/release-checklist.png"]);
+    assert.throws(
+      () => store.upsertDocument({ collectionId: collection.id, title: "危险图片", content: "拒绝非 HTTP 图片", imageUrls: ["file:///tmp/private.png"] }),
+      (error) => error.code === "IMAGE_URL_INVALID",
+    );
 
     const workflow = store.upsertWorkflow({
       name: "测试工作流",
@@ -273,7 +300,7 @@ test("DSH knowledge tools let the Agent create and manage its default collection
     );
     assert.deepEqual(
       [...registeredTools.keys()].filter((name) => name.startsWith("workflow_")).sort(),
-      ["workflow_delete", "workflow_manager"],
+      [],
     );
     assert.deepEqual(
       [...registeredTools.keys()].filter((name) => name.startsWith("git_")).sort(),
@@ -314,60 +341,11 @@ test("DSH knowledge tools let the Agent create and manage its default collection
     const results = await registeredTools.get("knowledge_search").execute({ query: "生产发布需要什么？" }, {});
     assert.equal(results[0]?.title, "发布约束");
 
-    const workflowManager = registeredTools.get("workflow_manager");
-    const managedWorkflow = await workflowManager.execute({
-      action: "create_workflow",
-      name: "Agent 创建的工作流",
-      description: "验证 Agent 自主管理和虚拟插件启停",
-      toolName: "agent_generated_workflow",
-      definition,
-    }, {});
-    assert.equal(managedWorkflow.enabled, false);
-    assert.equal((await workflowManager.execute({ action: "list_workflows" }, {}))[0].id, managedWorkflow.id);
-    assert.equal((await workflowManager.execute({ action: "get_workflow", workflowId: managedWorkflow.id }, {})).name, "Agent 创建的工作流");
-    const managedUpdated = await workflowManager.execute({
-      action: "update_workflow",
-      workflowId: managedWorkflow.id,
-      expectedRevision: managedWorkflow.revision,
-      description: "Agent 已更新的虚拟插件说明",
-    }, {});
-    assert.equal(managedUpdated.description, "Agent 已更新的虚拟插件说明");
-    const testRun = await workflowManager.execute({
-      action: "test_workflow",
-      workflowId: managedWorkflow.id,
-      input: { message: "Agent", count: 4 },
-    }, {});
-    assert.equal(testRun.output.verdict, "large");
-    const managedPublished = await workflowManager.execute({
-      action: "publish_workflow",
-      workflowId: managedWorkflow.id,
-      expectedRevision: managedUpdated.revision,
-    }, {});
-    assert.equal(managedPublished.enabled, true);
-    assert.ok(registeredTools.has("agent_generated_workflow"));
-    assert.deepEqual(
-      await registeredTools.get("agent_generated_workflow").execute({ message: "Agent", count: 4 }, {}),
-      { greeting: "你好，Agent！", double: 8, verdict: "large" },
-    );
-    const managedDisabled = await workflowManager.execute({
-      action: "set_enabled",
-      workflowId: managedWorkflow.id,
-      expectedRevision: managedPublished.revision,
-      enabled: false,
-    }, {});
-    assert.equal(managedDisabled.enabled, false);
-    assert.equal(registeredTools.has("agent_generated_workflow"), false);
-
     const deleteDecision = await listeners.get("tools/pre-execute")(
       { name: "knowledge_delete" },
       () => Promise.resolve({ kind: "allow" }),
     );
     assert.equal(deleteDecision.kind, "ask");
-    const workflowDeleteDecision = await listeners.get("tools/pre-execute")(
-      { name: "workflow_delete" },
-      () => Promise.resolve({ kind: "allow" }),
-    );
-    assert.equal(workflowDeleteDecision.kind, "ask");
     for (const name of ["git_restore", "git_publish"]) {
       const decision = await listeners.get("tools/pre-execute")(
         { name },
@@ -375,12 +353,6 @@ test("DSH knowledge tools let the Agent create and manage its default collection
       );
       assert.equal(decision.kind, "ask");
     }
-    await registeredTools.get("workflow_delete").execute({
-      id: managedWorkflow.id,
-      expectedRevision: managedDisabled.revision,
-      reason: "测试同步删除",
-    }, {});
-    assert.deepEqual(await workflowManager.execute({ action: "list_workflows" }, {}), []);
   } finally {
     for (const dispose of effects.reverse()) await dispose();
     await rm(root, { recursive: true, force: true });
@@ -519,7 +491,7 @@ test("browser plugin exposes right-side page navigation and migrated settings", 
     new URL("../packages/laobos-system-tools/lib/client.js", import.meta.url),
     "utf8",
   );
-  for (const label of ["对话", "轨迹", "文件管理器", "版本中心", "工作流", "知识库", "Skills", "MCP", "终端", "浏览器", "SSH", "应用管理"]) {
+  for (const label of ["对话", "轨迹", "文件管理器", "版本中心", "知识库", "Skills", "MCP", "终端", "浏览器", "SSH", "应用管理"]) {
     assert.match(source, new RegExp(`label: "${label}"`, "u"));
   }
   for (const group of ["对话", "工作台", "集成管理"]) {
@@ -534,6 +506,8 @@ test("browser plugin exposes right-side page navigation and migrated settings", 
   assert.match(source, /id: "laobos-project-workspace"/u);
   assert.match(source, /className: "lbs-center-page"/u);
   assert.match(source, /data-laobos-native-settings-trigger/u);
+  assert.match(source, /button\[aria-haspopup="dialog"\]/u);
+  assert.doesNotMatch(source, /lbs-auth-usage-button/u);
   assert.match(source, /openNativeSettings/u);
   assert.match(source, /closeNativeSettings/u);
   assert.match(source, /closingPage === "settings"/u);
@@ -558,19 +532,9 @@ test("browser plugin exposes right-side page navigation and migrated settings", 
   assert.match(source, /role: "dialog"/u);
   assert.match(source, /aria-labelledby": "lbs-knowledge-modal-title"/u);
   assert.match(source, /settings\.section/u);
-  assert.match(source, /settings\.plugins\.tab/u);
-  assert.match(source, /id: "laobos-workflow-plugins"/u);
-  assert.match(source, /function WorkflowPluginsTab/u);
-  assert.match(source, /Agent 自动化/u);
-  assert.match(source, /虚拟工作流插件已启用/u);
-  assert.match(source, /节点微调/u);
-  assert.match(source, /onSelectNode/u);
-  assert.doesNotMatch(source, /工作流定义（JSON）/u);
-  assert.match(source, /className: "lbs-workflow-table"/u);
-  assert.match(source, /className: "lbs-knowledge-modal lbs-workflow-modal"/u);
-  assert.match(source, /openWorkflow\(item, "view"\)/u);
-  assert.match(source, /openWorkflow\(item, "edit"\)/u);
-  for (const icon of ["eye", "edit", "power", "trash"]) {
+  assert.doesNotMatch(source, /id: "laobos-workflow-plugins"/u);
+  assert.doesNotMatch(source, /\{ id: "workflows", label: "工作流"/u);
+  for (const icon of ["edit", "trash"]) {
     assert.match(source, new RegExp(`name: "${icon}"`, "u"));
   }
   assert.match(source, /requestCloseManagement/u);

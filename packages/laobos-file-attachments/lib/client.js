@@ -130,27 +130,61 @@ ${CLOSE_TAG}`;
         }, [sessionId]);
         return pendingFiles(sessionId);
       }
+      function selectedModelSupportsImages(ctx, sessionId) {
+        try {
+          const state = ctx.modelDirectories.directoryFor(sessionId).store.getSnapshot();
+          const current = state.current;
+          if (!current) return void 0;
+          const model = state.groups.find((group) => group.id === current.provider)?.models.find((candidate) => candidate.id === current.model);
+          if (!Array.isArray(model?.inputModalities)) return void 0;
+          return model.inputModalities.includes("image");
+        } catch {
+          return void 0;
+        }
+      }
+      async function persistImagesAsFiles(sessionId, images) {
+        const bridge = window.laobosDesktop;
+        if (!bridge?.capabilities?.fileAttachments || !bridge.uploads?.pasteFiles) {
+          throw new Error("当前模型不支持图片输入，且普通文件上传服务不可用。 ");
+        }
+        const payloads = await Promise.all(images.map(async (image) => ({
+          name: image.file.name || "image",
+          mimeType: image.file.type || "application/octet-stream",
+          size: image.file.size,
+          bytes: new Uint8Array(await image.file.arrayBuffer())
+        })));
+        const result = await bridge.uploads.pasteFiles(sessionId, payloads);
+        return (result?.files || []).map(fileFromReference);
+      }
       function installFileSendChannel(ctx) {
         const conversation = ctx.get("conversation");
         if (!conversation?.sendSession) throw new Error("对话发送服务尚未就绪。 ");
         const original = conversation.sendSession;
         const routed = async function routedSendSession(session, text, imageIds, mode) {
-          const files = pendingFiles(session.sessionId);
+          const pending = pendingFiles(session.sessionId);
+          const downgradeImages = imageIds.length > 0 && selectedModelSupportsImages(ctx, session.sessionId) !== true;
+          const images = downgradeImages ? conversation.draftImages(imageIds) : [];
+          if (downgradeImages && images.length !== imageIds.length) {
+            throw new Error("一个或多个待发送图片已经失效。 ");
+          }
+          const converted = downgradeImages ? await persistImagesAsFiles(session.sessionId, images) : [];
+          const files = [...pending, ...converted];
           const envelopes = files.map(serializeFileEnvelope).join("\n\n");
           const prompt = text && envelopes ? `${text}
 
 ${envelopes}` : text || envelopes;
-          if (files.length) {
-            const sent = new Set(files.map(fileIdentity));
+          if (pending.length) {
+            const sent = new Set(pending.map(fileIdentity));
             replacePendingFiles(session.sessionId, pendingFiles(session.sessionId).filter((file) => !sent.has(fileIdentity(file))));
           }
           try {
-            await original.call(conversation, session, prompt, imageIds, mode);
+            await original.call(conversation, session, prompt, downgradeImages ? [] : imageIds, mode);
+            if (downgradeImages) conversation.releaseDraftImages(images);
           } catch (error) {
-            if (files.length) {
+            if (pending.length) {
               const current = pendingFiles(session.sessionId);
               const currentIds = new Set(current.map(fileIdentity));
-              replacePendingFiles(session.sessionId, [...files.filter((file) => !currentIds.has(fileIdentity(file))), ...current]);
+              replacePendingFiles(session.sessionId, [...pending.filter((file) => !currentIds.has(fileIdentity(file))), ...current]);
             }
             throw error;
           }
@@ -174,6 +208,29 @@ ${envelopes}` : text || envelopes;
         } catch {
           if (level === "error") window.alert(message);
         }
+      }
+      async function writeClipboard(text) {
+        try {
+          if (window.laobosDesktop?.clipboard?.writeText) {
+            const result = await window.laobosDesktop.clipboard.writeText(text);
+            if (result?.written) return true;
+          }
+        } catch {
+        }
+        return Primitives.writeClipboard(text);
+      }
+      function useClipboardFeedback() {
+        const [status, setStatus] = useState("idle");
+        const resetTimer = useRef();
+        useEffect(() => () => window.clearTimeout(resetTimer.current), []);
+        const copy = async (text) => {
+          window.clearTimeout(resetTimer.current);
+          const written = await writeClipboard(text);
+          setStatus(written ? "copied" : "failed");
+          resetTimer.current = window.setTimeout(() => setStatus("idle"), written ? 1800 : 3e3);
+          return written;
+        };
+        return { status, copy };
       }
       function imageFileFromDesktop(image) {
         const source = image?.bytes?.type === "Buffer" ? image.bytes.data : image?.bytes;
@@ -200,37 +257,50 @@ ${envelopes}` : text || envelopes;
         const bridge = window.laobosDesktop;
         const unavailable = !bridge?.capabilities?.fileAttachments || busy || input?.phase === "adjudicating" || input?.phase === "submitting";
         useEffect(() => {
-          const paste = async (event) => {
-            if (!event.target?.closest?.("[data-composer-card]")) return;
-            const pasted = Array.from(event.clipboardData?.items || []).filter((item) => item.kind === "file").map((item) => item.getAsFile()).filter(Boolean);
-            if (!pasted.length || pasted.every((file) => NATIVE_IMAGE_TYPES.has(file.type))) return;
+          const routeFiles = async (files) => {
+            const images = files.filter((file) => NATIVE_IMAGE_TYPES.has(file.type));
+            const ordinary = files.filter((file) => !NATIVE_IMAGE_TYPES.has(file.type));
+            const payloads = await Promise.all(ordinary.map(async (file) => ({
+              name: file.name,
+              mimeType: file.type,
+              size: file.size,
+              bytes: new Uint8Array(await file.arrayBuffer())
+            })));
+            const result = await bridge.uploads.pasteFiles(sessionId, payloads);
+            insertImageFiles(module.ctx, sessionId, images);
+            addPendingFiles(sessionId, result?.files || []);
+          };
+          const intercept = (event, files) => {
+            if (!files.length || files.every((file) => NATIVE_IMAGE_TYPES.has(file.type))) return false;
             event.preventDefault();
-            event.stopPropagation();
+            event.stopImmediatePropagation();
             if (unavailable) {
-              notify(module.ctx, sessionId, "error", "当前状态无法粘贴附件，请稍后重试。 ");
-              return;
+              notify(module.ctx, sessionId, "error", "当前状态无法添加附件，请稍后重试。 ");
+              return true;
             }
             setBusy(true);
-            try {
-              const images = pasted.filter((file) => NATIVE_IMAGE_TYPES.has(file.type));
-              const ordinary = pasted.filter((file) => !NATIVE_IMAGE_TYPES.has(file.type));
-              const payloads = await Promise.all(ordinary.map(async (file) => ({
-                name: file.name,
-                mimeType: file.type,
-                size: file.size,
-                bytes: new Uint8Array(await file.arrayBuffer())
-              })));
-              const result = await bridge.uploads.pasteFiles(sessionId, payloads);
-              insertImageFiles(module.ctx, sessionId, images);
-              addPendingFiles(sessionId, result?.files || []);
-            } catch (error) {
+            routeFiles(files).catch((error) => {
               notify(module.ctx, sessionId, "error", error instanceof Error ? error.message : String(error));
-            } finally {
+            }).finally(() => {
               if (mounted.current) setBusy(false);
-            }
+            });
+            return true;
+          };
+          const paste = (event) => {
+            if (!event.target?.closest?.("[data-composer-card]")) return;
+            const pasted = Array.from(event.clipboardData?.items || []).filter((item) => item.kind === "file").map((item) => item.getAsFile()).filter(Boolean);
+            intercept(event, pasted);
+          };
+          const drop = (event) => {
+            const dropped = Array.from(event.dataTransfer?.files || []);
+            intercept(event, dropped);
           };
           document.addEventListener("paste", paste, true);
-          return () => document.removeEventListener("paste", paste, true);
+          document.addEventListener("drop", drop, true);
+          return () => {
+            document.removeEventListener("paste", paste, true);
+            document.removeEventListener("drop", drop, true);
+          };
         }, [bridge, sessionId, unavailable]);
         const choose = async () => {
           if (unavailable) return;
@@ -263,12 +333,9 @@ ${envelopes}` : text || envelopes;
         return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", fill: "none", width: "16", height: "16", "aria-hidden": true }, /* @__PURE__ */ React.createElement("path", { d: "m4.5 4.5 7 7m0-7-7 7", stroke: "currentColor", strokeWidth: "1.4", strokeLinecap: "round" }));
       }
       function FileCard({ file }) {
-        const [copied, setCopied] = useState(false);
+        const { status, copy } = useClipboardFeedback();
         const copyPath = async () => {
-          if (await Primitives.writeClipboard(file.path)) {
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1e3);
-          }
+          await copy(file.path);
         };
         const reveal = async () => {
           try {
@@ -277,7 +344,7 @@ ${envelopes}` : text || envelopes;
             window.alert(error instanceof Error ? error.message : String(error));
           }
         };
-        return /* @__PURE__ */ React.createElement("article", { className: "lbs-file-card", "data-laobos-file-path": file.path, title: file.path }, /* @__PURE__ */ React.createElement("button", { className: "lbs-file-card-open", type: "button", "aria-label": `在文件夹中显示 ${file.name}`, onClick: reveal }, /* @__PURE__ */ React.createElement(FileSvgIcon, null), /* @__PURE__ */ React.createElement("span", { className: "lbs-file-card-main" }, /* @__PURE__ */ React.createElement("span", { className: "lbs-file-card-name" }, file.name), /* @__PURE__ */ React.createElement("span", { className: "lbs-file-card-meta" }, fileKind(file.name), " · ", formatBytes(file.size)))), /* @__PURE__ */ React.createElement(Primitives.Tooltip, { label: copied ? "已复制" : "复制绝对路径", side: "bottom" }, /* @__PURE__ */ React.createElement("button", { className: "lbs-file-card-action", type: "button", "aria-label": "复制文件绝对路径", onClick: copyPath }, copied ? /* @__PURE__ */ React.createElement(Primitives.IconCheckOutline16, null) : /* @__PURE__ */ React.createElement(Primitives.IconCopyOutline16, null))));
+        return /* @__PURE__ */ React.createElement("article", { className: "lbs-file-card", "data-laobos-file-path": file.path, title: file.path }, /* @__PURE__ */ React.createElement("button", { className: "lbs-file-card-open", type: "button", "aria-label": `在文件夹中显示 ${file.name}`, onClick: reveal }, /* @__PURE__ */ React.createElement(FileSvgIcon, null), /* @__PURE__ */ React.createElement("span", { className: "lbs-file-card-main" }, /* @__PURE__ */ React.createElement("span", { className: "lbs-file-card-name" }, file.name), /* @__PURE__ */ React.createElement("span", { className: "lbs-file-card-meta" }, fileKind(file.name), " · ", formatBytes(file.size)))), /* @__PURE__ */ React.createElement(Primitives.Tooltip, { label: status === "copied" ? "已复制" : status === "failed" ? "复制失败，请重试" : "复制绝对路径", side: "bottom" }, /* @__PURE__ */ React.createElement("button", { className: "lbs-file-card-action", type: "button", "aria-label": status === "copied" ? "文件绝对路径已复制" : status === "failed" ? "复制文件绝对路径失败，请重试" : "复制文件绝对路径", onClick: copyPath }, status === "copied" ? /* @__PURE__ */ React.createElement(Primitives.IconCheckOutline16, null) : status === "failed" ? /* @__PURE__ */ React.createElement(Primitives.IconWarningOutline16, null) : /* @__PURE__ */ React.createElement(Primitives.IconCopyOutline16, null))));
       }
       function FileComposerRail({ sessionId, input, inputActions }) {
         const files = usePendingFiles(sessionId);
@@ -309,20 +376,17 @@ ${file.path}` }, /* @__PURE__ */ React.createElement(FileSvgIcon, null), /* @__P
         return parts;
       }
       function MessageActions({ text, files, time }) {
-        const [copied, setCopied] = useState(false);
+        const { status, copy: write } = useClipboardFeedback();
         const copy = async () => {
           const value = [text, ...files.map((file) => file.path)].filter(Boolean).join("\n");
-          if (await Primitives.writeClipboard(value)) {
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1e3);
-          }
+          await write(value);
         };
         let displayTime = "";
         if (time !== void 0) {
           const date = new Date(time);
           if (!Number.isNaN(date.getTime())) displayTime = date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
         }
-        return /* @__PURE__ */ React.createElement("div", { className: "lbs-file-message-actions" }, displayTime ? /* @__PURE__ */ React.createElement("span", { className: "lbs-file-message-time" }, displayTime) : null, /* @__PURE__ */ React.createElement(Primitives.Tooltip, { label: copied ? "已复制" : "复制", side: "bottom" }, /* @__PURE__ */ React.createElement("button", { className: "lbs-file-message-action", type: "button", "aria-label": "复制消息", onClick: copy }, copied ? /* @__PURE__ */ React.createElement(Primitives.IconCheckOutline16, null) : /* @__PURE__ */ React.createElement(Primitives.IconCopyOutline16, null))));
+        return /* @__PURE__ */ React.createElement("div", { className: "lbs-file-message-actions" }, displayTime ? /* @__PURE__ */ React.createElement("span", { className: "lbs-file-message-time" }, displayTime) : null, /* @__PURE__ */ React.createElement(Primitives.Tooltip, { label: status === "copied" ? "已复制" : status === "failed" ? "复制失败，请重试" : "复制", side: "bottom" }, /* @__PURE__ */ React.createElement("button", { className: "lbs-file-message-action", type: "button", "aria-label": status === "copied" ? "消息已复制" : status === "failed" ? "复制消息失败，请重试" : "复制消息", onClick: copy }, status === "copied" ? /* @__PURE__ */ React.createElement(Primitives.IconCheckOutline16, null) : status === "failed" ? /* @__PURE__ */ React.createElement(Primitives.IconWarningOutline16, null) : /* @__PURE__ */ React.createElement(Primitives.IconCopyOutline16, null))));
       }
       function FileMessageNode({ node, loadImage }) {
         const texts = [];
@@ -337,7 +401,7 @@ ${file.path}` }, /* @__PURE__ */ React.createElement(FileSvgIcon, null), /* @__P
         const showBubble = parsed.text !== "" || rest.length > 0;
         return /* @__PURE__ */ React.createElement("div", { className: "lbs-file-user-row", "data-time-hover-root": true }, /* @__PURE__ */ React.createElement("div", { className: "lbs-file-user-stack" }, /* @__PURE__ */ React.createElement(AttachmentUI.ImageGallery, { images, load: loadImage, align: "end", labels: imageLabels }), showBubble ? /* @__PURE__ */ React.createElement("div", { className: "lbs-file-bubble" }, projectedText(parsed.text), rest.map((block, index) => /* @__PURE__ */ React.createElement("div", { className: "lbs-file-extra", key: index }, /* @__PURE__ */ React.createElement(Primitives.JsonBlock, { label: "附加内容", payload: block, truncatedLabel: (total) => `内容过长（${total} 项）` })))) : null, parsed.files.length ? /* @__PURE__ */ React.createElement("div", { className: "lbs-file-card-list" }, parsed.files.map((file, index) => /* @__PURE__ */ React.createElement(FileCard, { file, key: `${file.id}:${index}` }))) : null), /* @__PURE__ */ React.createElement(MessageActions, { text: parsed.text, files: parsed.files, time: node?.data?.time }));
       }
-      const inject = ["sessions", "slots", "conversation"];
+      const inject = ["sessions", "slots", "conversation", "modelDirectories"];
       function apply(ctx) {
         module.ctx = ctx;
         ctx.effect(() => installFileSendChannel(ctx), "laobos-file-attachments: independent file send channel");

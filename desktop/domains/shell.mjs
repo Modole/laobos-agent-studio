@@ -3,19 +3,54 @@ import { access, mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const READY_MARKER = "LAOBOS_WSL_READY";
-const ALLOWED_DISTRIBUTIONS = new Set(["Ubuntu", "Debian"]);
+const ALLOWED_DISTRIBUTIONS = new Set(["Ubuntu", "Ubuntu-24.04", "Debian"]);
 
 export function laobosShellStatePath(dshHome) {
   return path.join(dshHome, "data", "laobos-shell-state.json");
 }
 
 export function parseWslDistributions(output) {
-  return String(output || "")
+  return decodeWindowsNativeOutput(output)
     .replaceAll("\0", "")
     .replace(/^\uFEFF/u, "")
     .split(/\r?\n/u)
     .map((line) => line.trim().replace(/^\*\s*/u, ""))
-    .filter(Boolean);
+    .filter((line) => line
+      && line.length <= 128
+      && !/(?:未安装|没有安装|no installed|usage:|用法：|适用于 Linux)/iu.test(line));
+}
+
+export function decodeWindowsNativeOutput(value) {
+  if (Buffer.isBuffer(value)) {
+    if (value.length === 0) return "";
+    const hasUtf16Bom = value[0] === 0xff && value[1] === 0xfe;
+    const utf8 = value.toString("utf8");
+    const utf16 = value.toString("utf16le").replace(/^\uFEFF/u, "");
+    let zeroes = 0;
+    for (let index = 1; index < Math.min(value.length, 256); index += 2) {
+      if (value[index] === 0) zeroes += 1;
+    }
+    const sampledPairs = Math.floor(Math.min(value.length, 256) / 2);
+    const utf8LooksMisdecoded = utf8.includes("\0")
+      || (utf8.match(/\uFFFD/gu)?.length || 0) > Math.max(1, utf8.length * 0.03);
+    if (hasUtf16Bom
+      || (sampledPairs > 2 && zeroes / sampledPairs > 0.35)
+      || (value.length % 2 === 0 && utf8LooksMisdecoded && looksLikeText(utf16))) {
+      return utf16;
+    }
+    return utf8.replace(/^\uFEFF/u, "");
+  }
+  return String(value || "").replace(/^\uFEFF/u, "");
+}
+
+function looksLikeText(value) {
+  if (!value) return true;
+  let controls = 0;
+  for (const character of value) {
+    const code = character.codePointAt(0);
+    if (code < 32 && ![9, 10, 13].includes(code)) controls += 1;
+  }
+  return controls / value.length < 0.02;
 }
 
 export function preferredWslDistribution(distributions, preferred) {
@@ -28,7 +63,7 @@ export function preferredWslDistribution(distributions, preferred) {
 export function runFile(executable, args, options = {}) {
   return new Promise((resolve) => {
     execFile(executable, args, {
-      encoding: "utf8",
+      encoding: options.outputEncoding === "windows-native" ? null : "utf8",
       windowsHide: true,
       timeout: options.timeoutMs ?? 10_000,
       maxBuffer: options.maxBuffer ?? 1024 * 1024,
@@ -37,8 +72,12 @@ export function runFile(executable, args, options = {}) {
         code: error ? Number.isInteger(error.code) ? error.code : -1 : 0,
         signal: error?.signal || null,
         timedOut: error?.killed === true,
-        stdout: String(stdout),
-        stderr: String(stderr || error?.message || ""),
+        stdout: options.outputEncoding === "windows-native"
+          ? decodeWindowsNativeOutput(stdout)
+          : String(stdout),
+        stderr: options.outputEncoding === "windows-native"
+          ? decodeWindowsNativeOutput(stderr) || String(error?.message || "")
+          : String(stderr || error?.message || ""),
       });
     });
   });
@@ -89,15 +128,23 @@ export async function detectShellEnvironment({
     path.join(systemRoot, "System32", "wsl.exe"),
   ], canAccess);
   let listResult;
+  let statusResult;
   let distributions = [];
   let distribution;
   let wslReady = false;
   let healthResult;
 
   if (wslExecutable) {
-    listResult = await execute(wslExecutable, ["--list", "--quiet"], {
-      timeoutMs: 10_000,
-    });
+    [statusResult, listResult] = await Promise.all([
+      execute(wslExecutable, ["--status"], {
+        timeoutMs: 10_000,
+        outputEncoding: "windows-native",
+      }),
+      execute(wslExecutable, ["--list", "--quiet"], {
+        timeoutMs: 10_000,
+        outputEncoding: "windows-native",
+      }),
+    ]);
     if (listResult.code === 0) {
       distributions = parseWslDistributions(listResult.stdout);
       distribution = preferredWslDistribution(
@@ -112,8 +159,8 @@ export async function detectShellEnvironment({
         "--exec",
         "bash",
         "-lc",
-        `printf ${READY_MARKER}`,
-      ], { timeoutMs: 15_000 });
+        `printf '${READY_MARKER}:%s' "$(id -u)"`,
+      ], { timeoutMs: 30_000, outputEncoding: "windows-native" });
       wslReady = healthResult.code === 0
         && healthResult.stdout.includes(READY_MARKER);
     }
@@ -127,14 +174,34 @@ export async function detectShellEnvironment({
   const powershellExecutable = await firstAccessible([
     path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
   ], canAccess) || "powershell.exe";
+  const defaultUserIsRoot = wslReady
+    && healthResult.stdout.includes(`${READY_MARKER}:0`);
+  const restartRequired = !distribution && wslRestartRequired(statusResult, listResult);
+  const phase = wslReady
+    ? defaultUserIsRoot ? "user-setup-required" : "ready"
+    : distribution
+      ? "initialization-required"
+      : restartRequired
+        ? "restart-required"
+        : wslExecutable
+          ? "distribution-required"
+          : "component-required";
   const selectedBackend = wslReady
     ? "wsl"
     : gitBashExecutable
       ? "git-bash"
       : "powershell";
-  const status = wslReady ? "ready" : "compatible";
+  const status = wslReady && !defaultUserIsRoot ? "ready" : "attention";
   const message = wslReady
-    ? `WSL ${distribution} 已就绪，性能模式将使用 Linux Bash。`
+    ? defaultUserIsRoot
+      ? `WSL ${distribution} 已可用，但默认登录用户仍是 root；建议完成普通 Linux 用户设置。`
+      : `WSL ${distribution} 已就绪，性能模式将使用 Linux Bash。`
+    : distribution
+      ? healthResult?.timedOut
+        ? `${distribution} 首次初始化超时，可能有初始化窗口或 OOBE 正在等待。`
+        : `${distribution} 已安装，但 Bash 尚未通过健康检查。`
+    : restartRequired
+      ? "WSL 组件变更需要重启 Windows 后才能生效。"
     : selectedBackend === "git-bash"
       ? "WSL 尚未就绪，当前使用 Git Bash 兼容后端。"
       : "WSL 尚未就绪，当前使用 PowerShell 兼容模式。";
@@ -142,19 +209,21 @@ export async function detectShellEnvironment({
   return {
     version: 1,
     platform,
-    phase: wslReady ? "ready" : "fallback",
+    phase,
     status,
     selectedBackend,
     message,
     progress: { kind: "determinate", percent: wslReady ? 100 : 0 },
     installAvailable: true,
-    requiresRestart: false,
+    requiresRestart: restartRequired,
     wsl: {
       executable: wslExecutable,
       available: Boolean(wslExecutable),
-      componentEnabled: listResult?.code === 0,
+      componentEnabled: statusResult?.code === 0 || listResult?.code === 0,
       installed: Boolean(distribution),
       ready: wslReady,
+      defaultUserIsRoot,
+      initializationBlocked: Boolean(distribution && healthResult?.timedOut),
       distributions,
       distribution,
     },
@@ -162,10 +231,21 @@ export async function detectShellEnvironment({
     powershell: { executable: powershellExecutable },
     diagnostics: {
       list: diagnosticText(listResult),
+      status: diagnosticText(statusResult),
       health: diagnosticText(healthResult),
     },
     updatedAt: now(),
   };
+}
+
+function wslRestartRequired(...results) {
+  const text = results.map((result) => diagnosticText(result)).join("\n");
+  return [
+    /restart|required.*reboot|reboot.*required/iu,
+    /重启|重新启动/u,
+    /virtualmachineplatform|virtual machine platform/iu,
+    /虚拟机平台|未启用虚拟化/u,
+  ].some((pattern) => pattern.test(text));
 }
 
 function quotePowerShellLiteral(value) {
@@ -174,7 +254,7 @@ function quotePowerShellLiteral(value) {
 
 export async function runElevatedWslInstall({
   state,
-  distribution = "Ubuntu",
+  distribution = "Ubuntu-24.04",
   execute = runFile,
 }) {
   if (!ALLOWED_DISTRIBUTIONS.has(distribution)) {
@@ -213,7 +293,7 @@ export function buildShellRepairPrompt(state) {
     diagnostics: state.diagnostics,
     lastError: state.lastError,
   }, null, 2);
-  return `请帮助我诊断并修复劳博士的 WSL/Shell 环境。\n\n当前脱敏诊断数据：\n\n\`\`\`json\n${diagnostics}\n\`\`\`\n\n请先执行只读诊断，判断是 WSL 组件、Linux 发行版、虚拟化、重启、网络还是企业策略问题。给出结论和最小修复步骤。任何需要管理员权限、启停 Windows 功能、安装软件、重启或修改系统策略的动作，都必须先解释影响并征得我的明确确认；不要关闭安全软件，不要执行来源不明的脚本，也不要重复执行可能已经部分成功的安装命令。修复后请使用 wsl.exe --status、wsl.exe --list --verbose 和一个无副作用的 Bash 命令验证。`;
+  return `请帮助我诊断并修复劳博士的 WSL/Shell 环境。\n\n当前脱敏诊断数据：\n\n\`\`\`json\n${diagnostics}\n\`\`\`\n\n请先执行只读诊断，判断是 WSL 组件、Linux 发行版、虚拟化、待重启、首次初始化/OOBE、网络还是企业策略问题。给出结论和最小修复步骤。Windows 中文环境的 wsl.exe 输出可能是 UTF-16LE；乱码时应采集原始字节并显式解码，不要据乱码下结论。若功能状态与运行状态矛盾，请比较 DISM/CBS 功能变更时间与本次开机时间。若 wsl --install 已下载发行版但一直不退出，先查残留进程、发行版注册状态和 HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss 下的 RunOOBE；只有确认是 OOBE 门闩且获得用户许可后，才可提出修改注册表并配合 wsl --shutdown 的可逆方案。复杂 Linux 命令不要经 cmd.exe 二次转义。若默认 uid 为 0，还需引导创建普通 Linux 用户并设置为默认用户。任何需要管理员权限、启停 Windows 功能、安装软件、重启、结束进程或修改注册表/系统策略的动作，都必须先解释影响并征得我的明确确认；不要关闭安全软件，不要执行来源不明的脚本，也不要重复执行可能已经部分成功的安装命令。若 pwsh 等最小命令出现 0xC0000142，先对比沙箱内外启动，区分注入层兼容问题与系统损坏。修复后请使用 wsl.exe --status、wsl.exe --list --verbose 和一个无副作用的 Bash 命令验证。`;
 }
 
 export class LaobosShellManager {
@@ -280,7 +360,7 @@ export class LaobosShellManager {
     return this.refreshing;
   }
 
-  async install(distribution = "Ubuntu") {
+  async install(distribution = "Ubuntu-24.04") {
     if (this.platform !== "win32") throw new Error("当前系统不需要安装 WSL。 ");
     if (this.installing) return this.installing;
     if (!ALLOWED_DISTRIBUTIONS.has(distribution)) throw new Error("不支持的 WSL 发行版。 ");
@@ -324,17 +404,7 @@ export class LaobosShellManager {
         canAccess: this.canAccess,
         preferredDistribution: distribution,
       });
-      if (!detected.wsl?.ready) {
-        detected.phase = detected.wsl?.installed
-          ? "initialization-required"
-          : "restart-required";
-        detected.status = "attention";
-        detected.requiresRestart = !detected.wsl?.installed;
-        detected.message = detected.requiresRestart
-          ? "WSL 组件已安装，重启 Windows 后将自动继续检测。"
-          : "Linux 发行版已安装，需要完成首次初始化。";
-        detected.progress = { kind: "determinate", percent: 90 };
-      }
+      if (!detected.wsl?.ready) detected.progress = { kind: "determinate", percent: 90 };
       await this.update(detected, true);
       return this.snapshot();
     })().finally(() => {
@@ -420,7 +490,7 @@ export function registerShellIpc({
   });
   ipcMain.handle("laobos:shell:install-wsl", async (event, input = {}) => {
     authorize(event);
-    return manager.install(input.distribution || "Ubuntu");
+    return manager.install(input.distribution || "Ubuntu-24.04");
   });
   ipcMain.handle("laobos:shell:initialize-wsl", async (event) => {
     authorize(event);

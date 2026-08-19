@@ -8,6 +8,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   buildShellRepairPrompt,
+  decodeWindowsNativeOutput,
   detectShellEnvironment,
   LaobosShellManager,
   parseWslDistributions,
@@ -71,6 +72,14 @@ test("WSL distribution parsing ignores encoding residue and Docker helper distro
   assert.equal(preferredWslDistribution(distributions), "Ubuntu");
   assert.equal(preferredWslDistribution(distributions, "Debian"), "Debian");
   assert.equal(preferredWslDistribution(["docker-desktop"]), undefined);
+  const utf16 = Buffer.from("\uFEFFUbuntu-24.04\r\nDebian\r\n", "utf16le");
+  assert.equal(decodeWindowsNativeOutput(utf16), "Ubuntu-24.04\r\nDebian\r\n");
+  assert.deepEqual(parseWslDistributions(utf16), ["Ubuntu-24.04", "Debian"]);
+  assert.deepEqual(parseWslDistributions("未安装适用于 Linux 的分发版。\r\n"), []);
+  assert.equal(
+    decodeWindowsNativeOutput(Buffer.from("默认版本：2，需要重新启动。", "utf16le")),
+    "默认版本：2，需要重新启动。",
+  );
 });
 
 test("Windows detection selects healthy WSL before Git Bash and PowerShell", async () => {
@@ -93,13 +102,63 @@ test("Windows detection selects healthy WSL before Git Bash and PowerShell", asy
     execute: async (executable, args) => {
       calls.push([executable, args]);
       if (args.includes("--list")) return { code: 0, stdout: "Ubuntu\r\n", stderr: "" };
-      return { code: 0, stdout: "LAOBOS_WSL_READY", stderr: "" };
+      return { code: 0, stdout: "LAOBOS_WSL_READY:1000", stderr: "" };
     },
   });
   assert.equal(state.selectedBackend, "wsl");
   assert.equal(state.wsl.distribution, "Ubuntu");
   assert.equal(state.wsl.ready, true);
-  assert.equal(calls.length, 2);
+  assert.equal(state.phase, "ready");
+  assert.equal(state.wsl.defaultUserIsRoot, false);
+  assert.equal(calls.length, 3);
+});
+
+test("Windows WSL detection distinguishes restart, OOBE timeout and root user setup", async () => {
+  const env = { SystemRoot: "C:\\Windows" };
+  const wsl = path.join(env.SystemRoot, "System32", "wsl.exe");
+  const powershell = path.join(env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const canAccess = async (candidate) => {
+    if (![wsl, powershell].includes(candidate)) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+  };
+
+  const restart = await detectShellEnvironment({
+    platform: "win32",
+    env,
+    canAccess,
+    execute: async (_executable, args) => args.includes("--status")
+      ? { code: 1, stdout: "", stderr: "需要重新启动 Windows 才能完成操作" }
+      : { code: 0, stdout: "", stderr: "" },
+  });
+  assert.equal(restart.phase, "restart-required");
+  assert.equal(restart.requiresRestart, true);
+
+  const blocked = await detectShellEnvironment({
+    platform: "win32",
+    env,
+    canAccess,
+    execute: async (_executable, args) => args.includes("--list")
+      ? { code: 0, stdout: "Ubuntu-24.04\r\n", stderr: "" }
+      : args.includes("--status")
+        ? { code: 0, stdout: "默认版本: 2", stderr: "" }
+        : { code: -1, timedOut: true, stdout: "", stderr: "timed out" },
+  });
+  assert.equal(blocked.phase, "initialization-required");
+  assert.equal(blocked.wsl.initializationBlocked, true);
+
+  const root = await detectShellEnvironment({
+    platform: "win32",
+    env,
+    canAccess,
+    execute: async (_executable, args) => args.includes("--list")
+      ? { code: 0, stdout: "Ubuntu-24.04\r\n", stderr: "" }
+      : args.includes("--status")
+        ? { code: 0, stdout: "默认版本: 2", stderr: "" }
+        : { code: 0, stdout: "LAOBOS_WSL_READY:0", stderr: "" },
+  });
+  assert.equal(root.selectedBackend, "wsl");
+  assert.equal(root.phase, "user-setup-required");
+  assert.equal(root.status, "attention");
+  assert.equal(root.wsl.defaultUserIsRoot, true);
 });
 
 test("shell router keeps Bash fallbacks ahead of PowerShell", () => {
@@ -218,6 +277,7 @@ test("shell manager persists the detected route and exposes safe repair context"
     const prompt = buildShellRepairPrompt(state);
     assert.match(prompt, /先执行只读诊断/u);
     assert.match(prompt, /必须先解释影响并征得我的明确确认/u);
+    assert.match(prompt, /RunOOBE/u);
     assert.doesNotMatch(prompt, /process\.env/u);
   } finally {
     await rm(temporary, { recursive: true, force: true });

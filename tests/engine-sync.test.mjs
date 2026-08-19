@@ -230,168 +230,10 @@ runtime:
     const search = await searchResponse.json();
     assert.equal(search.results[0]?.title, "中文检索");
 
-    const workflowResponse = await fetch(`${bridge.url}/api/workflows`, {
-      method: "PUT",
+    const removedWorkflowResponse = await fetch(`${bridge.url}/api/workflows`, {
       headers,
-      body: JSON.stringify({
-        name: "回显工具",
-        toolName: "fixture_echo_workflow",
-        definition: {
-          nodes: [
-            { id: "input", type: "input" },
-            { id: "template", type: "template", template: "收到：{{input.text}}" },
-            { id: "output", type: "output" },
-          ],
-          edges: [
-            { id: "one", source: "input", target: "template" },
-            { id: "two", source: "template", target: "output" },
-          ],
-        },
-      }),
     });
-    assert.equal(workflowResponse.status, 200);
-    const { workflow } = await workflowResponse.json();
-	assert.equal(typeof workflow.revision, "string");
-	const staleWorkflowResponse = await fetch(`${bridge.url}/api/workflows`, {
-	  method: "PUT",
-	  headers,
-	  body: JSON.stringify({
-		...workflow,
-		expectedRevision: "stale-revision",
-	  }),
-	});
-	assert.equal(staleWorkflowResponse.status, 400);
-	assert.equal((await staleWorkflowResponse.json()).code, "ENGINE_RESOURCE_REVISION_CONFLICT");
-
-    const publishResponse = await fetch(
-      `${bridge.url}/api/workflows/${workflow.id}/publish`,
-      { method: "POST", headers },
-    );
-    assert.equal(publishResponse.status, 200);
-    const publish = await publishResponse.json();
-    assert.equal(publish.published.toolName, "fixture_echo_workflow");
-
-    const runResponse = await fetch(`${bridge.url}/api/workflows/${workflow.id}/run`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ input: { text: "hello" } }),
-    });
-    assert.equal(runResponse.status, 200);
-    const workflowRun = await runResponse.json();
-    assert.equal(workflowRun.result.output, "收到：hello");
-
-    const fromNodeResponse = await fetch(
-      `${bridge.url}/api/workflows/${workflow.id}/run`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          input: { text: "partial" },
-          mode: "from-node",
-          startNodeId: "template",
-        }),
-      },
-    );
-    assert.equal(fromNodeResponse.status, 200);
-    const fromNodeRun = await fromNodeResponse.json();
-    assert.equal(fromNodeRun.result.output, "收到：partial");
-    assert.deepEqual(
-      fromNodeRun.result.trace.map((item) => item.nodeId),
-      ["template", "output"],
-    );
-
-    const singleNodeResponse = await fetch(
-      `${bridge.url}/api/workflows/${workflow.id}/run`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          input: { text: "single" },
-          mode: "single-node",
-          startNodeId: "template",
-        }),
-      },
-    );
-    assert.equal(singleNodeResponse.status, 200);
-    const singleNodeRun = await singleNodeResponse.json();
-    assert.equal(singleNodeRun.result.output, "收到：single");
-    assert.deepEqual(
-      singleNodeRun.result.trace.map((item) => item.nodeId),
-      ["template"],
-    );
-
-    const routedWorkflowResponse = await fetch(`${bridge.url}/api/workflows`, {
-      method: "PUT",
-      headers,
-      body: JSON.stringify({
-        name: "条件分流",
-        toolName: "fixture_routed_workflow",
-        definition: {
-          version: 2,
-          nodes: [
-            {
-              id: "input",
-              type: "input",
-              fields: [{ name: "score", type: "number", required: true }],
-            },
-            {
-              id: "condition",
-              type: "if-else",
-              conditions: [
-                {
-                  left: "{{input.score}}",
-                  operator: "greater-than-or-equal",
-                  right: 60,
-                },
-              ],
-            },
-            { id: "passed", type: "template", template: "通过" },
-            { id: "failed", type: "template", template: "未通过" },
-            {
-              id: "merge",
-              type: "variable-aggregator",
-              variables: ["{{nodes.passed}}", "{{nodes.failed}}"],
-            },
-            { id: "output", type: "output" },
-          ],
-          edges: [
-            { id: "route-one", source: "input", target: "condition" },
-            {
-              id: "route-two",
-              source: "condition",
-              sourceHandle: "true",
-              target: "passed",
-            },
-            {
-              id: "route-three",
-              source: "condition",
-              sourceHandle: "false",
-              target: "failed",
-            },
-            { id: "route-four", source: "passed", target: "merge" },
-            { id: "route-five", source: "failed", target: "merge" },
-            { id: "route-six", source: "merge", target: "output" },
-          ],
-        },
-      }),
-    });
-    assert.equal(routedWorkflowResponse.status, 200);
-    const routedWorkflow = (await routedWorkflowResponse.json()).workflow;
-    const routedRunResponse = await fetch(
-      `${bridge.url}/api/workflows/${routedWorkflow.id}/run`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ input: { score: 90 } }),
-      },
-    );
-    assert.equal(routedRunResponse.status, 200);
-    const routedRun = await routedRunResponse.json();
-    assert.equal(routedRun.result.output, "通过");
-    assert.equal(
-      routedRun.result.trace.find((item) => item.nodeId === "failed")?.status,
-      "skipped",
-    );
+    assert.equal(removedWorkflowResponse.status, 404);
 
     const runtimeResponse = await fetch(
       `${bridge.url}/api/chat/11111111-1111-4111-8111-111111111111`,
@@ -415,7 +257,7 @@ runtime:
   }
 });
 
-test("standalone desktop mode exposes local knowledge and workflow APIs", async (context) => {
+test("standalone desktop mode exposes local knowledge and rejects removed workflow APIs", async (context) => {
   const studioRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
   const engineRoot = [
     process.env.PI_STUDIO_TEST_ENGINE_ROOT,
@@ -464,22 +306,10 @@ test("standalone desktop mode exposes local knowledge and workflow APIs", async 
     const { collection } = await collectionResponse.json();
     assert.equal(collection.agentEnabled, true);
 
-    const workflowResponse = await fetch(`${bridge.url}/api/workflows`, {
-      method: "PUT",
+    const removedWorkflowResponse = await fetch(`${bridge.url}/api/workflows`, {
       headers,
-      body: JSON.stringify({
-        name: "客户端回显",
-        toolName: "client_echo",
-        definition: {
-          nodes: [
-            { id: "input", type: "input" },
-            { id: "output", type: "output", value: "{{input.text}}" },
-          ],
-          edges: [{ id: "input-output", source: "input", target: "output" }],
-        },
-      }),
     });
-    assert.equal(workflowResponse.status, 200);
+    assert.equal(removedWorkflowResponse.status, 404);
     assert.equal(existsSync(path.join(agentDir, "system-tools.db")), true);
     assert.equal(
       existsSync(path.join(agentDir, "pi-studio-engine", ".pi", "engine.yaml")),

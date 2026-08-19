@@ -9,9 +9,11 @@ const entries = [
   ["packages/laobos-shell/src/client.jsx", "packages/laobos-shell/lib/client.js"],
   ["packages/laobos-file-attachments/src/client.jsx", "packages/laobos-file-attachments/lib/client.js"],
   ["packages/laobos-workspace-tools/src/client.jsx", "packages/laobos-workspace-tools/lib/client.js"],
+  ["packages/laobos-browserops/src/client.jsx", "packages/laobos-browserops/lib/client.js"],
   ["packages/laobos-terminal-ui/src/client.jsx", "packages/laobos-terminal-ui/lib/client.js"],
   ["packages/laobos-ssh/src/client.jsx", "packages/laobos-ssh/lib/client.js"],
   ["packages/laobos-app-manager/src/client.jsx", "packages/laobos-app-manager/lib/client.js"],
+  ["packages/laobos-updater/src/client.jsx", "packages/laobos-updater/lib/client.js"],
 ];
 
 for (const [entry, output] of entries) {

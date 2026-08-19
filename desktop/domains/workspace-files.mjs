@@ -8,11 +8,13 @@ import {
   readFile,
   readdir,
   rename,
+  rmdir,
   unlink,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
-import { boundedString, isPathInside, resolveAuthorizedPath } from "../ipc-security.mjs";
+import { boundedString, resolveAuthorizedPath } from "../ipc-security.mjs";
+import { resolveWorkspaceDirectory } from "../workspace-authorization.mjs";
 
 const MAX_DIRECTORY_ENTRIES = 2_000;
 const MAX_TEXT_BYTES = 5 * 1024 * 1024;
@@ -30,6 +32,17 @@ const SENSITIVE_NAMES = new Set([
   "id_rsa",
   "id_ed25519",
 ]);
+const PLAIN_TEXT_NAMES = new Set([
+  ".editorconfig",
+  ".gitattributes",
+  ".gitignore",
+  ".prettierignore",
+  "dockerfile",
+  "license",
+  "makefile",
+  "procfile",
+]);
+const WINDOWS_RESERVED_FILE_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu;
 
 export function registerWorkspaceFilesIpc({
   ipcMain,
@@ -39,16 +52,21 @@ export function registerWorkspaceFilesIpc({
   dshHome,
   getMainWindow,
   settings,
+  workspaceAuthorizer,
   authorize,
 }) {
   ipcMain.handle("laobos:workspace:context", async (event) => {
     authorize(event);
-    return { root: workspace, settings: await settings.get() };
+    return {
+      root: workspace,
+      authorizedRoots: workspaceAuthorizer ? await workspaceAuthorizer.roots() : [workspace],
+      settings: await settings.get(),
+    };
   });
 
   ipcMain.handle("laobos:workspace:list", async (event, input = {}) => {
     authorize(event);
-    const root = await authorizedRoot(workspace, input.root);
+    const root = await authorizedRoot(workspace, input.root, workspaceAuthorizer);
     const relative = boundedString(input.path || ".", "目录路径", 4096);
     const directory = await resolveAuthorizedPath(root, relative, { kind: "directory" });
     const entries = await readdir(directory.path, { withFileTypes: true });
@@ -63,6 +81,7 @@ export function registerWorkspaceFilesIpc({
           name: entry.name,
           path: path.relative(root, child.path) || ".",
           type: child.stat.isDirectory() ? "directory" : "file",
+          mediaType: child.stat.isFile() ? mediaTypeFor(child.path) : null,
           size: child.stat.isFile() ? child.stat.size : 0,
           modifiedAt: child.stat.mtimeMs,
         };
@@ -75,7 +94,7 @@ export function registerWorkspaceFilesIpc({
 
   ipcMain.handle("laobos:workspace:read", async (event, input = {}) => {
     authorize(event);
-    const root = await authorizedRoot(workspace, input.root);
+    const root = await authorizedRoot(workspace, input.root, workspaceAuthorizer);
     const relative = boundedString(input.path, "文件路径", 4096);
     assertPreviewAllowed(relative);
     const file = await resolveAuthorizedPath(root, relative, { kind: "file" });
@@ -86,13 +105,73 @@ export function registerWorkspaceFilesIpc({
     const data = await readFile(file.path);
     if (isText && data.includes(0)) throw new Error("文件包含二进制数据，不能作为文本预览。 ");
     return isText
-      ? { kind: "text", mediaType, content: data.toString("utf8"), size: data.byteLength }
-      : { kind: mediaType === "application/pdf" ? "pdf" : mediaType.startsWith("image/") ? "image" : mediaType.startsWith("audio/") || mediaType.startsWith("video/") ? "media" : "binary", mediaType, base64: data.toString("base64"), size: data.byteLength };
+      ? { kind: "text", mediaType, content: data.toString("utf8"), size: data.byteLength, modifiedAt: file.stat.mtimeMs }
+      : { kind: mediaType === "application/pdf" ? "pdf" : mediaType.startsWith("image/") ? "image" : mediaType.startsWith("audio/") || mediaType.startsWith("video/") ? "media" : "binary", mediaType, base64: data.toString("base64"), size: data.byteLength, modifiedAt: file.stat.mtimeMs };
+  });
+
+  ipcMain.handle("laobos:workspace:write", async (event, input = {}) => {
+    authorize(event);
+    const root = await authorizedRoot(workspace, input.root, workspaceAuthorizer);
+    const relative = boundedString(input.path, "文件路径", 4096);
+    const content = boundedString(input.content, "文件内容", MAX_TEXT_BYTES);
+    assertPreviewAllowed(relative);
+    const file = await resolveAuthorizedPath(root, relative, { kind: "file" });
+    const mediaType = mediaTypeFor(file.path);
+    if (!isTextMediaType(mediaType)) throw new Error("只有文本文件可以在应用内编辑。 ");
+    if (Number.isFinite(input.expectedModifiedAt) && Math.abs(file.stat.mtimeMs - input.expectedModifiedAt) > 0.5) {
+      throw new Error("文件已被其他程序修改，请刷新后再编辑。 ");
+    }
+    const data = Buffer.from(content, "utf8");
+    if (data.byteLength > MAX_TEXT_BYTES) throw new Error(`文件超过编辑上限（${Math.round(MAX_TEXT_BYTES / 1024 / 1024)} MB）。`);
+    const temporary = path.join(path.dirname(file.path), `.${path.basename(file.path)}.${randomUUID()}.tmp`);
+    try {
+      await writeFile(temporary, data, { flag: "wx", mode: file.stat.mode & 0o777 });
+      await rename(temporary, file.path);
+      const saved = await resolveAuthorizedPath(root, relative, { kind: "file" });
+      return { saved: true, size: saved.stat.size, modifiedAt: saved.stat.mtimeMs };
+    } catch (error) {
+      await unlink(temporary).catch(() => {});
+      throw error;
+    }
+  });
+
+  ipcMain.handle("laobos:workspace:rename", async (event, input = {}) => {
+    authorize(event);
+    const root = await authorizedRoot(workspace, input.root, workspaceAuthorizer);
+    const relative = boundedString(input.path, "路径", 4096);
+    if (relative === ".") throw new Error("不能重命名工作区根目录。 ");
+    const name = safeEntryName(input.name);
+    const source = await resolveAuthorizedPath(root, relative);
+    const destination = path.join(path.dirname(source.path), name);
+    await ensureDestinationAvailable(destination);
+    await rename(source.path, destination);
+    return {
+      renamed: true,
+      name,
+      path: path.relative(root, destination) || ".",
+      type: source.stat.isDirectory() ? "directory" : "file",
+    };
+  });
+
+  ipcMain.handle("laobos:workspace:remove", async (event, input = {}) => {
+    authorize(event);
+    const root = await authorizedRoot(workspace, input.root, workspaceAuthorizer);
+    const relative = boundedString(input.path, "路径", 4096);
+    if (relative === ".") throw new Error("不能删除工作区根目录。 ");
+    const target = await resolveAuthorizedPath(root, relative);
+    if (target.stat.isDirectory()) {
+      try { await rmdir(target.path); }
+      catch (error) {
+        if (["ENOTEMPTY", "EEXIST"].includes(error?.code)) throw new Error("文件夹不为空，只能删除空文件夹。 ");
+        throw error;
+      }
+    } else await unlink(target.path);
+    return { removed: true, type: target.stat.isDirectory() ? "directory" : "file" };
   });
 
   ipcMain.handle("laobos:workspace:reveal", async (event, input = {}) => {
     authorize(event);
-    const root = await authorizedRoot(workspace, input.root);
+    const root = await authorizedRoot(workspace, input.root, workspaceAuthorizer);
     const target = await resolveAuthorizedPath(root, boundedString(input.path || ".", "路径", 4096));
     if (target.stat.isDirectory()) await shell.openPath(target.path);
     else shell.showItemInFolder(target.path);
@@ -177,6 +256,9 @@ export function registerWorkspaceFilesIpc({
       "laobos:workspace:context",
       "laobos:workspace:list",
       "laobos:workspace:read",
+      "laobos:workspace:write",
+      "laobos:workspace:rename",
+      "laobos:workspace:remove",
       "laobos:workspace:reveal",
       "laobos:uploads:set-location",
       "laobos:uploads:pick-files",
@@ -237,9 +319,13 @@ export function safeUploadFileName(value) {
   const normalized = path.basename(String(value || "").replaceAll("\\", "/"))
     .normalize("NFKC")
     .replace(/[\u0000-\u001f\u007f]/gu, "")
+    .replace(/[<>:"/\\|?*]/gu, "_")
     .trim()
-    .slice(0, 180);
-  return normalized && normalized !== "." && normalized !== ".." ? normalized : "file";
+    .replace(/[. ]+$/gu, "")
+    .slice(0, 180)
+    .replace(/[. ]+$/gu, "");
+  if (!normalized || normalized === "." || normalized === "..") return "file";
+  return WINDOWS_RESERVED_FILE_NAME.test(normalized) ? `_${normalized}`.slice(0, 180) : normalized;
 }
 
 export function managedUploadRoot({ workspace, dshHome, location, sessionId }) {
@@ -387,18 +473,16 @@ export async function copyManagedUploadFiles({
   }
 }
 
-async function authorizedRoot(defaultRoot, requested) {
-  if (requested === undefined || requested === "") {
-    return (await resolveAuthorizedPath(defaultRoot, ".", { kind: "directory" })).path;
+async function authorizedRoot(defaultRoot, requested, workspaceAuthorizer) {
+  if (requested !== undefined && requested !== "" && !path.isAbsolute(requested)) {
+    throw new Error("工作区路径必须是绝对路径。 ");
   }
-  const root = boundedString(requested, "工作区路径", 4096);
-  if (!path.isAbsolute(root)) throw new Error("工作区路径必须是绝对路径。 ");
-  const defaultResolved = await resolveAuthorizedPath(defaultRoot, ".", { kind: "directory" });
-  const requestedResolved = await resolveAuthorizedPath(root, ".", { kind: "directory" });
-  if (!isPathInside(defaultResolved.path, requestedResolved.path)) {
-    throw new Error("该工作区不在桌面应用启动时授权的范围内。 ");
-  }
-  return requestedResolved.path;
+  return resolveWorkspaceDirectory({
+    authorizer: workspaceAuthorizer,
+    defaultRoot,
+    requested: requested || defaultRoot,
+    label: "文件工作区",
+  });
 }
 
 function assertPreviewAllowed(relative) {
@@ -408,17 +492,43 @@ function assertPreviewAllowed(relative) {
   }
 }
 
+function isTextMediaType(mediaType) {
+  return mediaType.startsWith("text/") || mediaType === "application/json";
+}
+
+function safeEntryName(value) {
+  const name = boundedString(value, "新名称", 255).trim();
+  if (!name || name === "." || name === ".." || /[\\/\u0000-\u001f\u007f]/u.test(name)) {
+    throw new Error("文件名称无效。 ");
+  }
+  return name;
+}
+
+async function ensureDestinationAvailable(destination) {
+  try {
+    await lstat(destination);
+  } catch (error) {
+    if (error?.code === "ENOENT") return;
+    throw error;
+  }
+  throw new Error("同一目录中已存在该名称。 ");
+}
+
 export function mediaTypeFor(filePath) {
   const extension = path.extname(filePath).toLowerCase();
+  if (PLAIN_TEXT_NAMES.has(path.basename(filePath).toLowerCase())) return "text/plain";
   return ({
     ".md": "text/markdown", ".mdx": "text/markdown", ".txt": "text/plain",
     ".js": "text/javascript", ".mjs": "text/javascript", ".cjs": "text/javascript",
     ".ts": "text/typescript", ".tsx": "text/typescript", ".jsx": "text/javascript",
-    ".css": "text/css", ".html": "text/html", ".htm": "text/html",
-    ".json": "application/json", ".yaml": "text/yaml", ".yml": "text/yaml",
+    ".css": "text/css", ".scss": "text/css", ".less": "text/css", ".html": "text/html", ".htm": "text/html",
+    ".json": "application/json", ".jsonc": "application/json", ".yaml": "text/yaml", ".yml": "text/yaml", ".toml": "text/plain",
     ".xml": "text/xml", ".csv": "text/csv", ".tsv": "text/tab-separated-values", ".log": "text/plain",
     ".py": "text/x-python", ".rb": "text/x-ruby", ".rs": "text/x-rust",
-    ".go": "text/x-go", ".java": "text/x-java", ".sh": "text/x-shellscript",
+    ".go": "text/x-go", ".java": "text/x-java", ".kt": "text/plain", ".kts": "text/plain",
+    ".c": "text/plain", ".h": "text/plain", ".cc": "text/plain", ".cpp": "text/plain", ".cxx": "text/plain", ".hpp": "text/plain",
+    ".sh": "text/x-shellscript", ".bash": "text/x-shellscript", ".zsh": "text/x-shellscript", ".fish": "text/x-shellscript",
+    ".sql": "text/plain", ".graphql": "text/plain", ".gql": "text/plain", ".ini": "text/plain", ".conf": "text/plain",
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
     ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
     ".pdf": "application/pdf", ".doc": "application/msword",

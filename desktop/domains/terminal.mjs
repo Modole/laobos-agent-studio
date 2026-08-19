@@ -3,7 +3,8 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import * as pty from "node-pty";
-import { boundedString, resolveAuthorizedPath } from "../ipc-security.mjs";
+import { boundedString } from "../ipc-security.mjs";
+import { resolveWorkspaceDirectory } from "../workspace-authorization.mjs";
 
 const MAX_TERMINALS = 8;
 const MAX_WRITE_BYTES = 64 * 1024;
@@ -11,6 +12,7 @@ const MAX_WRITE_BYTES = 64 * 1024;
 export function registerTerminalIpc({
   ipcMain,
   workspace,
+  workspaceAuthorizer,
   authorize,
   getMainWindow,
 }) {
@@ -19,7 +21,7 @@ export function registerTerminalIpc({
   ipcMain.handle("laobos:terminal:create", async (event, input = {}) => {
     authorize(event);
     if (terminals.size >= MAX_TERMINALS) throw new Error(`终端数量已达到上限（${MAX_TERMINALS}）。`);
-    const cwd = await terminalCwd(workspace, input.cwd);
+    const cwd = await terminalCwd(workspace, input.cwd, workspaceAuthorizer);
     const cols = dimension(input.cols, 80, 20, 500);
     const rows = dimension(input.rows, 24, 5, 200);
     const tmuxRequested = input.tmux === true && process.platform !== "win32";
@@ -167,10 +169,14 @@ export function findExecutable(command, envPath = process.env.PATH || "") {
   return undefined;
 }
 
-async function terminalCwd(workspace, requested) {
+async function terminalCwd(workspace, requested, workspaceAuthorizer) {
   const value = requested ? boundedString(requested, "终端目录", 4096) : workspace;
-  const relative = path.relative(workspace, path.resolve(value));
-  return (await resolveAuthorizedPath(workspace, relative, { kind: "directory" })).path;
+  return resolveWorkspaceDirectory({
+    authorizer: workspaceAuthorizer,
+    defaultRoot: workspace,
+    requested: value,
+    label: "终端工作区",
+  });
 }
 
 function terminalTmuxKey(value) {

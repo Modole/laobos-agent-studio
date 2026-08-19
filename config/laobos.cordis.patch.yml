@@ -48,3 +48,5 @@
       name: '@laobos/dsh-market'
       config:
         profile: web
+    - id: laobos-updater
+      name: '@laobos/dsh-updater'

@@ -53,6 +53,8 @@ window.__ModuleLoader__.load({
       const wslText = useMemo(() => {
         if (!state?.wsl?.available) return "Windows 组件尚未启用";
         if (!state.wsl.distributions?.length) return "尚未安装 Linux 发行版";
+        if (state.wsl.defaultUserIsRoot) return `${state.wsl.distribution} 可用，待创建普通用户`;
+        if (state.wsl.initializationBlocked) return `${state.wsl.distribution} 首次初始化可能卡住`;
         if (!state.wsl.ready) return `${state.wsl.distribution || state.wsl.distributions[0]} 需要初始化或修复`;
         return `${state.wsl.distribution} 已就绪`;
       }, [state]);
@@ -136,16 +138,21 @@ window.__ModuleLoader__.load({
         h("div", { className: "lbs-shell-actions" },
           h("button", { type: "button", className: "lbs-shell-button secondary", disabled: busy, onClick: () => action(() => api.refresh()) }, busy ? "处理中…" : "重新检测"),
           state?.platform === "win32" && !state?.wsl?.ready && !state?.wsl?.installed
-            ? h("button", { type: "button", className: "lbs-shell-button", disabled: busy, onClick: () => action(() => api.installWsl("Ubuntu")) }, "安装 WSL + Ubuntu")
+            ? h("button", { type: "button", className: "lbs-shell-button", disabled: busy, onClick: () => action(() => api.installWsl("Ubuntu-24.04")) }, "安装 WSL + Ubuntu 24.04")
             : null,
           state?.platform === "win32" && !state?.wsl?.ready && state?.wsl?.installed && state?.wsl?.distribution
             ? h("button", { type: "button", className: "lbs-shell-button", disabled: busy, onClick: () => action(() => api.initializeWsl()) }, "打开 Linux 初始化窗口")
+            : null,
+          state?.platform === "win32" && state?.wsl?.defaultUserIsRoot
+            ? h("button", { type: "button", className: "lbs-shell-button", disabled: busy, onClick: () => action(() => api.initializeWsl()) }, "打开 Linux 用户设置")
             : null,
           state?.status === "error" || state?.status === "attention" || state?.lastError
             ? h("button", { type: "button", className: "lbs-shell-button secondary", disabled: busy, onClick: prepareRepair }, "创建诊断对话")
             : null,
         ),
         state?.requiresRestart ? h("div", { className: "lbs-shell-note" }, "Windows 需要重启。劳博士会保留安装状态，并在下次启动时自动检测。") : null,
+        state?.wsl?.initializationBlocked ? h("div", { className: "lbs-shell-note" }, "发行版可能被首次启动窗口或 OOBE 状态阻塞。请先关闭残留安装窗口，再创建诊断对话；劳博士不会自动修改注册表。") : null,
+        state?.wsl?.defaultUserIsRoot ? h("div", { className: "lbs-shell-note" }, "WSL 已能运行，但长期使用 root 风险较高。请创建普通 Linux 用户、加入 sudo 组并设为默认登录用户。") : null,
         error || state?.lastError ? h("div", { className: "lbs-shell-note lbs-shell-error" }, error || state.lastError) : null,
         h("div", { className: "lbs-shell-note" }, "性能模式在 Windows 上优先使用 WSL；WSL 不可用时依次降级到 Git Bash 和 PowerShell。需要管理员权限的安装或修复操作始终由你确认。"),
         repairPrompt ? h("section", { className: "lbs-shell-repair" },

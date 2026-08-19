@@ -1,0 +1,9 @@
+extends: ./electron-builder.yml
+afterSign: ./scripts/sign-test-update.mjs
+
+# Only for a controlled macOS auto-update test chain. This signs the complete
+# application bundle ad-hoc so Squirrel can validate sealed resources. It is not
+# a substitute for Developer ID signing or Apple notarization.
+mac:
+  identity: "-"
+  hardenedRuntime: false

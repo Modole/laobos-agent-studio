@@ -9,7 +9,16 @@
  */
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
@@ -19,6 +28,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+const PENDING_PLUGIN_FILE = ".laobos-plugin-pending.json";
 
 export class MarketError extends Error {
   constructor(code, message, status = 500) {
@@ -352,6 +362,108 @@ function sanitizePackageName(name) {
   return value;
 }
 
+function exportedPath(value) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  for (const condition of ["default", "import", "node", "require"]) {
+    if (typeof value[condition] === "string") return value[condition];
+  }
+  return null;
+}
+
+function resolvePackageFile(packageDir, declaration, label) {
+  const relative = exportedPath(declaration);
+  if (!relative) return null;
+  const resolved = path.resolve(packageDir, relative);
+  const root = `${path.resolve(packageDir)}${path.sep}`;
+  if (resolved !== path.resolve(packageDir) && !resolved.startsWith(root)) {
+    throw new MarketError("PKG_ENTRY_OUTSIDE", `${label} 指向插件目录之外：${relative}`, 400);
+  }
+  return existsSync(resolved) ? resolved : null;
+}
+
+function literalPattern(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Validate the package surfaces DSH will import before changing the live profile. */
+export function validatePluginPackage(pkg, packageDir) {
+  const packageName = sanitizePackageName(pkg?.name);
+  const hostDeclaration = typeof pkg.exports === "string"
+    ? pkg.exports
+    : pkg.exports?.["."] ?? pkg.main;
+  const hostEntry = resolvePackageFile(packageDir, hostDeclaration, "Host 入口");
+  if (!hostEntry) {
+    throw new MarketError(
+      "HOST_ENTRY_MISSING",
+      `${packageName} 缺少可用的 Host 入口（exports[\".\"] 或 main）。`,
+      400,
+    );
+  }
+
+  const client = pkg.dsh?.client;
+  let clientEntry = null;
+  if (client !== undefined) {
+    if (!client || typeof client !== "object" || typeof client.platform !== "string") {
+      throw new MarketError("CLIENT_DECL_INVALID", `${packageName} 的 dsh.client.platform 必须为字符串。`, 400);
+    }
+    if (client.inject !== undefined && (
+      !Array.isArray(client.inject)
+      || client.inject.some((value) => typeof value !== "string")
+    )) {
+      throw new MarketError("CLIENT_DECL_INVALID", `${packageName} 的 dsh.client.inject 必须为字符串数组。`, 400);
+    }
+    if (client.immediately !== undefined && typeof client.immediately !== "boolean") {
+      throw new MarketError("CLIENT_DECL_INVALID", `${packageName} 的 dsh.client.immediately 必须为布尔值。`, 400);
+    }
+    if (client.platform === "web") {
+      clientEntry = resolvePackageFile(packageDir, pkg.exports?.["./client"], "Client 入口");
+      if (!clientEntry) {
+        throw new MarketError(
+          "CLIENT_ENTRY_MISSING",
+          `${packageName} 声明了 Web Client，但 exports[\"./client\"] 不存在。`,
+          400,
+        );
+      }
+      const source = readFileSync(clientEntry, "utf8");
+      const hasLoaderCall = /(?:window|globalThis)\s*\.\s*__ModuleLoader__\s*\.\s*load\s*\(/u.test(source);
+      const hasMatchingId = new RegExp(`\\bid\\s*:\\s*(["'])${literalPattern(packageName)}\\1`, "u").test(source);
+      if (!hasLoaderCall || !hasMatchingId) {
+        throw new MarketError(
+          "CLIENT_REGISTRATION_MISMATCH",
+          `${packageName} 的 Client bundle 未通过 __ModuleLoader__.load 注册同名模块。`,
+          400,
+        );
+      }
+    }
+  }
+
+  return { packageName, hostEntry, clientEntry };
+}
+
+function writeFileAtomicSync(filePath, contents) {
+  mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  const temporary = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    writeFileSync(temporary, contents, { encoding: "utf8", mode: 0o600 });
+    renameSync(temporary, filePath);
+  } catch (error) {
+    rmSync(temporary, { force: true });
+    throw error;
+  }
+}
+
+function markPluginPending(profileDir, plugin) {
+  writeFileAtomicSync(
+    path.join(profileDir, PENDING_PLUGIN_FILE),
+    `${JSON.stringify({
+      schema: 1,
+      installedAt: new Date().toISOString(),
+      ...plugin,
+    }, null, 2)}\n`,
+  );
+}
+
 export function profileDirOf(dshHome, profileName) {
   if (!dshHome) throw new MarketError("DSH_HOME_MISSING", "无法确定 DSH_HOME，安装需要主机环境。", 500);
   return path.join(dshHome, "profiles", profileName || "web");
@@ -413,54 +525,73 @@ export async function installPlugin({
         lastError = new MarketError("PKG_INVALID", `package.json 解析失败：${error.message}`, 400);
         continue;
       }
-      const packageName = sanitizePackageName(pkg.name);
+      const validation = validatePluginPackage(pkg, sourceDir);
+      const packageName = validation.packageName;
       const targetDir = path.join(profileDir, "node_modules", ...packageName.split("/"));
-      if (existsSync(targetDir)) {
-        if (!force) {
-          throw new MarketError("ALREADY_INSTALLED", `${packageName} 已安装（${targetDir}），如需覆盖请使用 force。`, 409);
-        }
-        rmSync(targetDir, { recursive: true, force: true });
+      const targetExists = existsSync(targetDir);
+      if (targetExists && !force) {
+        throw new MarketError("ALREADY_INSTALLED", `${packageName} 已安装（${targetDir}），如需覆盖请使用 force。`, 409);
       }
-      mkdirSync(path.dirname(targetDir), { recursive: true, mode: 0o700 });
-      await run("cp", ["-R", `${sourceDir}/.`, targetDir], { timeout: 60000 });
-
       const patchFile = path.join(profileDir, "cordis.patch.yml");
-      const patch = registerPatchEntry(patchFile, {
-        id: packageName.replace(/^@/, "").replace(/\//g, "-"),
-        name: packageName,
-      });
-      const entryFile = resolveEntryFile(pkg, targetDir);
-      return {
-        installed: true,
-        packageName,
-        owner,
-        repo,
-        ref: branch,
-        targetDir,
-        patchFile,
-        patch,
-        entryFile,
-        entryWarning: entryFile === null ? "未找到可用的入口文件（exports.\".\" 或 main），该插件可能无法加载。" : null,
-        restartRequired: true,
-        message: `已安装 ${packageName} 到 ${targetDir}；重启 dsh web 后生效。`,
-      };
+      const entryId = packageName.replace(/^@/, "").replace(/\//g, "-");
+      const stagingDir = `${targetDir}.installing-${randomUUID().slice(0, 8)}`;
+      const backupDir = `${targetDir}.backup-${randomUUID().slice(0, 8)}`;
+      const pendingFile = path.join(profileDir, PENDING_PLUGIN_FILE);
+      const originalPatch = existsSync(patchFile) ? readFileSync(patchFile, "utf8") : null;
+      const originalPending = existsSync(pendingFile) ? readFileSync(pendingFile, "utf8") : null;
+      let targetBackedUp = false;
+      let targetCommitted = false;
+
+      mkdirSync(path.dirname(targetDir), { recursive: true, mode: 0o700 });
+      rmSync(stagingDir, { recursive: true, force: true });
+      rmSync(backupDir, { recursive: true, force: true });
+      cpSync(sourceDir, stagingDir, { recursive: true, force: false, errorOnExist: true });
+
+      try {
+        if (targetExists) {
+          renameSync(targetDir, backupDir);
+          targetBackedUp = true;
+        }
+        renameSync(stagingDir, targetDir);
+        targetCommitted = true;
+
+        const patch = registerPatchEntry(patchFile, { id: entryId, name: packageName });
+        markPluginPending(profileDir, { entryId, packageName, ref: branch });
+        rmSync(backupDir, { recursive: true, force: true });
+        return {
+          installed: true,
+          packageName,
+          owner,
+          repo,
+          ref: branch,
+          targetDir,
+          patchFile,
+          patch,
+          entryFile: path.join(targetDir, path.relative(sourceDir, validation.hostEntry)),
+          clientEntry: validation.clientEntry
+            ? path.join(targetDir, path.relative(sourceDir, validation.clientEntry))
+            : null,
+          restartRequired: true,
+          startupProtected: true,
+          message: `已安装 ${packageName} 到 ${targetDir}；重启后若插件启动失败，劳博士会自动隔离并恢复。`,
+        };
+      } catch (error) {
+        if (targetCommitted) rmSync(targetDir, { recursive: true, force: true });
+        if (targetBackedUp && existsSync(backupDir)) renameSync(backupDir, targetDir);
+        if (originalPatch === null) rmSync(patchFile, { force: true });
+        else writeFileAtomicSync(patchFile, originalPatch);
+        if (originalPending === null) rmSync(pendingFile, { force: true });
+        else writeFileAtomicSync(pendingFile, originalPending);
+        throw error;
+      } finally {
+        rmSync(stagingDir, { recursive: true, force: true });
+        rmSync(backupDir, { recursive: true, force: true });
+      }
     }
     throw lastError || new MarketError("INSTALL_FAILED", "安装失败：没有可用分支。", 500);
   } finally {
     rmSync(workRoot, { recursive: true, force: true });
   }
-}
-
-function resolveEntryFile(pkg, packageDir) {
-  const candidates = [];
-  const mainEntry = typeof pkg.exports === "string" ? pkg.exports : pkg.exports?.["."];
-  if (typeof mainEntry === "string") candidates.push(mainEntry);
-  if (pkg.main) candidates.push(pkg.main);
-  for (const candidate of candidates) {
-    const resolved = path.resolve(packageDir, candidate);
-    if (existsSync(resolved)) return resolved;
-  }
-  return null;
 }
 
 /**
@@ -494,7 +625,7 @@ export function registerPatchEntry(patchFile, entry) {
   } else {
     next = `${text.replace(/\s+$/, "")}${text ? "\n" : ""}${block}`;
   }
-  writeFileSync(patchFile, next, "utf8");
+  writeFileAtomicSync(patchFile, next);
   return { already: false, id: entry.id };
 }
 

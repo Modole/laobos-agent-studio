@@ -4,7 +4,7 @@
 
 ## DeepSeek Harness
 
-- Package: `@deepseek-ai/dsh` 0.1.0-rc.6
+- Package: `@deepseek-ai/dsh` 0.1.0-rc.7
 - Project: <https://github.com/deepseek-ai/deepseek-harness>
 - License: MIT
 - Copyright: Copyright (c) 2026 DeepSeek
@@ -54,6 +54,15 @@ SOFTWARE.
 - Copyright: Copyright (c) 2026 xiaobright；部分内容 Copyright (c) 2026 DeepSeek
 
 劳博士对该社区预设进行了系统 preset 注册、中文元数据和 Windows Shell 路由适配。上游 MIT 许可与 NOTICE 分别保存在 `packages/laobos-performance/LICENSE.upstream` 和 `packages/laobos-performance/NOTICE.upstream`。该社区项目不代表 DeepSeek 官方认可或合作关系。
+
+## Git for Windows MinGit
+
+- Component: MinGit 2.55.0.4 (64-bit)
+- Project: <https://github.com/git-for-windows/git>
+- Bundled path on Windows: `resources/git`
+- License: GPL-2.0 and the licenses of bundled support libraries
+
+MinGit 是 Git for Windows 官方提供、面向第三方应用内嵌的最小 Git 发行物。构建脚本固定官方 Release 地址和 SHA-256；Windows 安装包保留 MinGit 根目录 `LICENSE.txt`、`COPYING` 及各支持库随附的许可证文件。对应版本的完整源代码可从上述项目和 `v2.55.0.windows.4` 标签获取。
 
 ## 其他 npm 依赖
 

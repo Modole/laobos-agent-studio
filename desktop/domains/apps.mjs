@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
-import { access, appendFile, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { access, appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
-import { boundedString, resolveAuthorizedPath } from "../ipc-security.mjs";
+import { boundedString } from "../ipc-security.mjs";
+import { resolveWorkspaceDirectory } from "../workspace-authorization.mjs";
 
 const MAX_APPS = 100;
 const MAX_LOG_BYTES = 1_500_000;
@@ -16,6 +17,7 @@ export function registerAppsIpc({
   app,
   shell,
   workspace,
+  workspaceAuthorizer,
   authorize,
   getMainWindow,
 }) {
@@ -47,7 +49,7 @@ export function registerAppsIpc({
     const registry = await readManagedRegistry(registryFile);
     const entry = registry.find((item) => item.id === id);
     if (!entry) throw new Error("应用不存在。 ");
-    await appCwd(workspace, entry.cwd);
+    await appCwd(workspace, entry.cwd, workspaceAuthorizer);
     const port = normalizeManagedAppPort(entry.port);
     const observed = await applicationRuntime(entry, current);
     if (observed.state === "online") throw new Error(`端口 ${port} 当前在线，但进程不受本次应用管理器实例控制。请先释放端口或重启对应应用。`);
@@ -164,7 +166,7 @@ export function registerAppsIpc({
 
   ipcMain.handle("laobos:apps:detect", async (event, input = {}) => {
     authorize(event);
-    return detectApplication(await appCwd(workspace, input.cwd));
+    return detectApplication(await appCwd(workspace, input.cwd, workspaceAuthorizer));
   });
 
   ipcMain.handle("laobos:apps:find-port", async (event, input = {}) => {
@@ -180,7 +182,7 @@ export function registerAppsIpc({
     const id = validId(input.id) || crypto.randomUUID();
     const previous = registry.find((item) => item.id === id);
     if (["running", "starting", "stopping"].includes(runtime.get(id)?.state)) throw new Error("请先停止应用，再修改登记信息。 ");
-    const cwd = await appCwd(workspace, input.cwd);
+    const cwd = await appCwd(workspace, input.cwd, workspaceAuthorizer);
     const command = normalizeCommand(input.command);
     const args = normalizeArgs(input.args);
     let port;
@@ -336,7 +338,18 @@ export async function findFreeApplicationPort(registry = [], start = MANAGED_APP
   throw new Error(`${MANAGED_APP_MIN_PORT}-${MANAGED_APP_MAX_PORT} 范围内没有可用端口。`);
 }
 
-export function isTcpPortFree(port) {
+export async function isTcpPortFree(port) {
+  // Probe the loopback and the wildcard address separately. On macOS/BSD,
+  // binding 127.0.0.1 can succeed while another socket already holds 0.0.0.0
+  // (Flask-style `host="0.0.0.0"`), and the reverse is also true; a port is
+  // free only when both addresses accept a new bind.
+  for (const host of ["0.0.0.0", "127.0.0.1"]) {
+    if (!(await probeTcpBind(host, port))) return false;
+  }
+  return true;
+}
+
+function probeTcpBind(host, port) {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
     server.unref();
@@ -344,7 +357,7 @@ export function isTcpPortFree(port) {
       if (error?.code === "EADDRINUSE" || error?.code === "EACCES") resolve(false);
       else reject(error);
     });
-    server.listen({ host: "127.0.0.1", port, exclusive: true }, () => server.close(() => resolve(true)));
+    server.listen({ host, port, exclusive: true }, () => server.close(() => resolve(true)));
   });
 }
 
@@ -354,12 +367,14 @@ async function ensureApplicationPortAvailable(registry, port, ignoreId) {
   if (!(await isTcpPortFree(port))) throw new Error(`端口 ${port} 已被其他进程占用，请选择新的空闲端口。`);
 }
 
-async function appCwd(workspace, requested) {
+async function appCwd(workspace, requested, workspaceAuthorizer) {
   const value = boundedString(requested || workspace, "应用目录", 4096);
-  const root = await realpath(workspace);
-  const absolute = path.isAbsolute(value) ? value : path.resolve(root, value);
-  const canonical = await realpath(absolute);
-  return (await resolveAuthorizedPath(root, path.relative(root, canonical), { kind: "directory" })).path;
+  return resolveWorkspaceDirectory({
+    authorizer: workspaceAuthorizer,
+    defaultRoot: workspace,
+    requested: value,
+    label: "应用工作区",
+  });
 }
 
 async function readRegistry(filePath) {

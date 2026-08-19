@@ -23,7 +23,10 @@ test("DSH runtime is pinned to the validated release", async () => {
     await readFile(join(projectRoot, "package.json"), "utf8"),
   );
 
-  assert.equal(packageJson.dependencies["@deepseek-ai/dsh"], "0.1.0-rc.6");
+  assert.equal(packageJson.dependencies["@deepseek-ai/dsh"], "0.1.0-rc.7");
+  assert.equal(packageJson.dependencies["node-pty"], "1.2.0-beta.15");
+  assert.equal(packageJson.dependencies["@deepseek-ai/dsh-llm-pi-ai"], undefined);
+  assert.equal(packageJson.dependencies["@earendil-works/pi-ai"], undefined);
 });
 
 test("the node-pty spawn helper permission is repaired deterministically", async () => {
@@ -107,6 +110,8 @@ test("completed task records collapse as a turn and preserve the final answer", 
   assert.match(client, /data-turn-tail/);
   assert.match(client, /lbs-task-process-hidden/);
   assert.match(client, /lbs-task-final-collapsed/);
+  assert.match(client, /assistants\.findLast\(hasVisibleAnswer\)/);
+  assert.match(client, /querySelectorAll\("\[data-variant=think\]"\)/);
   assert.match(client, /已执行 \$\{toolCount\} 项操作/);
   assert.match(client, /工作了 \$\{duration\}/);
   assert.doesNotMatch(client, /lbs-tool-running-info/);
@@ -176,10 +181,11 @@ test("user message actions stay below every user bubble while edit/retry attach 
 });
 
 test("the 劳博士 browser plugin injects Cordis services rather than package ids", async () => {
-  const client = await readFile(
-    join(projectRoot, "packages", "laobos-system-tools", "lib", "client.js"),
-    "utf8",
-  );
+  const [client, server, packagedLogo] = await Promise.all([
+    readFile(join(projectRoot, "packages", "laobos-system-tools", "lib", "client.js"), "utf8"),
+    readFile(join(projectRoot, "packages", "laobos-system-tools", "lib", "index.js"), "utf8"),
+    readFile(join(projectRoot, "packages", "laobos-system-tools", "assets", "laobos-logo.png")),
+  ]);
   assert.match(client, /const inject = \["slots", "sessions"\]/);
   assert.match(client, /const brandName = "劳博士"/);
   assert.match(client, /svg\.dataset\.laobosBrandIcon = "true"/);
@@ -190,6 +196,8 @@ test("the 劳博士 browser plugin injects Cordis services rather than package i
   assert.match(client, /element\.textContent = brandName/);
   assert.match(client, /dataset\.laobosPreviewBadge = "true"/);
   assert.match(client, /function SkipWelcomeNotice/);
+  assert.match(server, /new URL\("\.\.\/assets\/laobos-logo\.png", import\.meta\.url\)/);
+  assert.ok(packagedLogo.byteLength > 100_000);
   assert.match(client, /id: "welcome-notice"/);
   assert.match(client, /priority: -1000/);
   assert.doesNotMatch(
@@ -265,6 +273,8 @@ test("composed web profile contains safety, approval and mode UI", async () => {
       assert.match(composed, new RegExp(`id:\\s+${pluginId}(?:\\s|$)`));
     }
     assert.match(composed, /defaultPreset:\s+workspace-write/);
+    assert.match(composed, /id:\s+laobos-updater(?:\s|$)/u);
+    assert.doesNotMatch(composed, /laobos-cloud-auth/u);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
@@ -343,7 +353,6 @@ test("desktop runtime lifecycle boots DSH on a private random port", async () =>
     assert.equal(systemTools.status, 200);
     assert.deepEqual(await systemTools.json(), {
       collections: [],
-      workflows: [],
       skills: [],
       mcp: [],
     });

@@ -103,9 +103,7 @@ window.__ModuleLoader__.load({
       .lbs-card{appearance:none;background:transparent;border:1px solid var(--dsw-alias-line-border);border-radius:10px;color:inherit;cursor:pointer;padding:10px;text-align:left;width:100%}.lbs-card:hover,.lbs-card[data-active=true]{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-line-border-hover)}.lbs-card-title{font-size:14px;font-weight:550}.lbs-meta{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
       .lbs-button{appearance:none;background:var(--dsw-alias-interactive-bg-primary);border:0;border-radius:9px;color:var(--dsw-alias-label-on-primary);cursor:pointer;font:inherit;font-size:13px;height:34px;padding:0 13px}.lbs-button.secondary{background:var(--dsw-alias-interactive-bg-secondary);color:var(--dsw-alias-label-primary)}.lbs-button.danger{background:rgba(218,70,70,.13);color:#d94b4b}.lbs-button:disabled{cursor:not-allowed;opacity:.5}
       .lbs-input,.lbs-area{box-sizing:border-box;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-line-border);border-radius:9px;color:inherit;font:inherit;font-size:13px;outline:none;padding:8px 10px;width:100%}.lbs-input:focus,.lbs-area:focus{border-color:var(--dsw-alias-line-border-focus)}.lbs-area{min-height:110px;resize:vertical}.lbs-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;min-height:220px;tab-size:2}.lbs-label{font-size:12px;font-weight:550;margin-bottom:4px}.lbs-empty{align-items:center;color:var(--dsw-alias-label-secondary);display:flex;justify-content:center;min-height:180px;text-align:center}.lbs-error{background:rgba(218,70,70,.1);border-radius:9px;color:#d94b4b;font-size:12px;padding:9px}.lbs-ok{background:rgba(44,168,110,.1);border-radius:9px;color:#2a9b67;font-size:12px;padding:9px;white-space:pre-wrap;word-break:break-word}
-      .lbs-svg{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-line-border);border-radius:12px;height:260px;width:100%}.lbs-node{fill:var(--dsw-alias-bg-layer-1);stroke:var(--dsw-alias-line-border);stroke-width:1.5}.lbs-node-group[data-selectable=true]{cursor:pointer;outline:none}.lbs-node-group[data-selectable=true]:hover .lbs-node,.lbs-node-group[data-selected=true] .lbs-node{stroke:var(--dsw-alias-brand-primary);stroke-width:2}.lbs-edge{fill:none;stroke:var(--dsw-alias-label-tertiary);stroke-width:1.4}.lbs-node-title{fill:var(--dsw-alias-label-primary);font-size:12px;font-weight:600}.lbs-node-type{fill:var(--dsw-alias-label-tertiary);font-size:10px}.lbs-workflow-node-editor{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-line-border);border-radius:11px;display:flex;flex-direction:column;gap:9px;padding:11px}.lbs-workflow-node-head{align-items:center;display:flex;gap:8px;justify-content:space-between}.lbs-workflow-node-head strong{font-size:13px}.lbs-workflow-node-editor .lbs-code{min-height:130px}.lbs-check{accent-color:var(--dsw-alias-brand-primary)}
-      .lbs-workflow-list-panel{overflow:hidden;padding:0}.lbs-workflow-table-scroll{overflow:auto}.lbs-workflow-table{min-width:840px}.lbs-workflow-table-head,.lbs-workflow-row{align-items:center;display:grid;grid-template-columns:minmax(280px,1fr) minmax(150px,.62fr) 104px 74px 132px 154px}.lbs-workflow-table-head{background:var(--dsw-alias-bg-layer-2);border-bottom:1px solid var(--dsw-alias-line-border);color:var(--dsw-alias-label-tertiary);font-size:11px;font-weight:550;min-height:38px}.lbs-workflow-table-head>span,.lbs-workflow-cell{box-sizing:border-box;padding:0 12px}.lbs-workflow-row{border-bottom:1px solid var(--dsw-alias-line-border);min-height:68px}.lbs-workflow-row:last-child{border-bottom:0}.lbs-workflow-row:hover{background:var(--dsw-alias-interactive-bg-hover)}.lbs-workflow-primary{align-items:center;display:flex;gap:10px;min-width:0}.lbs-workflow-primary-button{align-items:center;appearance:none;background:transparent;border:0;color:inherit;cursor:pointer;display:flex;gap:10px;min-width:0;padding:0;text-align:left}.lbs-workflow-list-icon{align-items:center;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-line-border);border-radius:8px;color:var(--dsw-alias-label-secondary);display:flex;flex:none;height:32px;justify-content:center;width:32px}.lbs-workflow-row-copy{display:flex;flex-direction:column;min-width:0}.lbs-workflow-row-copy>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-workflow-tool-name{font:11px/18px ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-workflow-list-status{align-items:center;color:var(--dsw-alias-label-secondary);display:inline-flex;gap:6px;white-space:nowrap}.lbs-workflow-list-status>span{background:var(--dsw-alias-label-quaternary);border-radius:50%;height:7px;width:7px}.lbs-workflow-list-status[data-enabled=true]{color:#2a9b67}.lbs-workflow-list-status[data-enabled=true]>span{background:#2a9b67}.lbs-workflow-list-actions{display:flex;gap:4px;justify-content:flex-end}.lbs-workflow-modal{max-width:980px}.lbs-workflow-modal-summary{display:grid;gap:10px;grid-template-columns:repeat(4,1fr)}.lbs-workflow-summary-item{background:var(--dsw-alias-bg-layer-2);border-radius:9px;display:flex;flex-direction:column;gap:2px;padding:10px}.lbs-workflow-summary-item strong{font-size:14px}.lbs-workflow-summary-item span{color:var(--dsw-alias-label-tertiary);font-size:11px}.lbs-workflow-readonly{display:grid;gap:10px;grid-template-columns:1fr 1fr}.lbs-workflow-readonly>div{min-width:0}.lbs-workflow-readonly code{display:block;margin-top:4px}.lbs-workflow-run-output{max-height:180px;overflow:auto}@media(max-width:700px){.lbs-workflow-modal-summary,.lbs-workflow-readonly{grid-template-columns:1fr 1fr}}
-      .lbs-automation-list{display:flex;flex-direction:column;gap:6px}.lbs-automation-card{appearance:none;align-items:center;background:transparent;border:1px solid var(--dsw-alias-line-border);border-radius:10px;color:inherit;cursor:pointer;display:grid;gap:10px;grid-template-columns:minmax(0,1fr) auto;padding:11px;text-align:left;width:100%}.lbs-automation-card:hover,.lbs-automation-card[data-active=true]{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-line-border-hover)}.lbs-automation-card-copy{display:flex;flex-direction:column;min-width:0}.lbs-automation-card-copy>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-automation-state{align-items:center;color:var(--dsw-alias-label-tertiary);display:flex;font-size:11px;gap:6px;white-space:nowrap}.lbs-automation-state>span{background:var(--dsw-alias-label-quaternary);border-radius:50%;height:7px;width:7px}.lbs-automation-state[data-enabled=true]{color:#2a9b67}.lbs-automation-state[data-enabled=true]>span{background:#2a9b67}.lbs-automation-detail{display:flex;flex-direction:column;gap:12px}.lbs-automation-detail-head{align-items:flex-start;display:flex;gap:12px;justify-content:space-between}.lbs-automation-detail-head h2{font-size:18px;line-height:25px;margin:0}.lbs-automation-tool{background:var(--dsw-alias-bg-layer-2);border-radius:7px;color:var(--dsw-alias-label-secondary);display:block;font:11px/18px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;padding:7px 9px}.lbs-automation-actions{display:flex;flex-wrap:wrap;gap:8px}.lbs-automation-note{border-top:1px solid var(--dsw-alias-line-border);color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:18px;padding-top:10px}
+      .lbs-check{accent-color:var(--dsw-alias-brand-primary)}
       [data-laobos-right-sidebar]{grid-template-columns:var(--lbs-left-column,280px) minmax(0,1fr) var(--lbs-right-column,56px)!important}[data-laobos-native-settings-trigger]{display:none!important}body:has([data-laobos-native-settings-trigger][aria-expanded="true"])>[role="presentation"]:has(>[role="dialog"][aria-modal="true"]){z-index:2147483600!important}.lbs-right-sidebar{background:var(--dsw-specific-sidebar-fill);border-left:1px solid var(--dsw-alias-border-l1);box-sizing:border-box;color:var(--dsw-alias-label-primary);display:flex;flex-direction:column;overflow-y:auto;pointer-events:auto;position:absolute;right:0;top:0;bottom:0;transition:width var(--ds-transition-duration-slow,.2s) var(--ds-ease-in-out,ease);width:var(--lbs-right-column,56px)}.lbs-right-sidebar[data-dragging=true]{transition:none}.lbs-right-top{align-items:center;box-sizing:border-box;display:flex;flex:none;height:60px;justify-content:center;padding:8px 10px}.lbs-right-sidebar[data-expanded=true] .lbs-right-top{justify-content:space-between;padding:8px 16px}.lbs-right-brand{display:flex;flex-direction:column;min-width:0}.lbs-right-brand-title{font-size:14px;font-weight:600;line-height:19px}.lbs-right-brand-sub{color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:14px}.lbs-right-toggle{appearance:none;align-items:center;background:transparent;border:0;border-radius:8px;color:var(--dsw-alias-label-secondary);cursor:pointer;display:flex;height:32px;justify-content:center;padding:0;width:32px}.lbs-right-toggle:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}.lbs-right-nav{display:flex;flex:none;flex-direction:column;gap:2px;padding:4px 10px}.lbs-right-nav-group+.lbs-right-nav-group{border-top:1px solid var(--dsw-alias-border-l1);margin-top:6px;padding-top:8px}.lbs-right-nav-title{color:var(--dsw-alias-label-tertiary);font-size:10px;font-weight:550;letter-spacing:.04em;line-height:22px;overflow:hidden;padding:0 10px;text-overflow:ellipsis;white-space:nowrap}.lbs-right-nav-bottom{border-top:1px solid var(--dsw-alias-border-l1);margin-top:auto;padding-bottom:8px;padding-top:8px}.lbs-right-sidebar[data-expanded=false] .lbs-right-nav{align-items:center;padding-left:8px;padding-right:8px}.lbs-right-sidebar[data-expanded=false] .lbs-right-nav-title{display:none}.lbs-nav-button{appearance:none;background:transparent;border:0;border-radius:9px;color:var(--dsw-alias-label-secondary);cursor:pointer;display:flex;align-items:center;gap:10px;font:inherit;font-size:13px;height:38px;padding:0 10px;text-align:left;transition:background .12s,color .12s;width:100%}.lbs-nav-button:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}.lbs-nav-button[data-active=true]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}.lbs-right-sidebar[data-expanded=false] .lbs-nav-button{justify-content:center;padding:0;width:36px}.lbs-nav-icon{align-items:center;color:currentColor;display:inline-flex;flex:none;height:18px;justify-content:center;width:18px}.lbs-nav-svg{display:block}.lbs-nav-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-right-spacer{flex:1;min-height:8px}.lbs-right-resizer{cursor:col-resize;position:absolute;bottom:0;left:-5px;top:0;width:10px}.lbs-right-resizer:after{background:var(--dsw-alias-border-l2);content:"";opacity:0;position:absolute;bottom:0;left:4px;top:0;width:1px;transition:opacity .15s}.lbs-right-resizer:hover:after,.lbs-right-sidebar[data-dragging=true] .lbs-right-resizer:after{opacity:1}.lbs-center-page{background:var(--dsw-alias-bg-base);box-sizing:border-box;color:var(--dsw-alias-label-primary);display:flex;flex-direction:column;pointer-events:auto;position:absolute;left:var(--lbs-left-column,280px);right:var(--lbs-right-column,56px);top:0;bottom:0}.lbs-center-bar{align-items:center;border-bottom:1px solid var(--dsw-alias-border-l1);box-sizing:border-box;display:flex;flex:none;height:56px;justify-content:space-between;padding:0 clamp(16px,2.4vw,32px)}.lbs-center-crumb{align-items:center;display:flex;gap:9px}.lbs-center-crumb-icon{align-items:center;color:var(--dsw-alias-label-secondary);display:flex;height:20px;justify-content:center;width:20px}.lbs-center-crumb-title{font-size:15px;font-weight:600}.lbs-center-close{appearance:none;background:transparent;border:0;border-radius:8px;color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:12px;height:32px;padding:0 10px}.lbs-center-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}.lbs-center-scroll{box-sizing:border-box;flex:1;min-height:0;overflow:auto;padding:22px clamp(16px,3vw,40px) 32px}.lbs-center-content{margin:0 auto;max-width:1180px}.lbs-settings-actions{display:flex;flex-wrap:wrap;gap:8px}.lbs-settings-note{margin-top:2px}.lbs-upload-options{display:flex;flex-direction:column;gap:8px;margin-top:10px}.lbs-upload-option{align-items:flex-start;border:1px solid var(--dsw-alias-line-border);border-radius:10px;cursor:pointer;display:flex;gap:9px;padding:11px 12px}.lbs-upload-option:hover{background:var(--dsw-alias-interactive-bg-hover)}.lbs-upload-option input{accent-color:var(--dsw-alias-brand-primary);margin-top:3px}.lbs-upload-option-title{font-size:13px;font-weight:550;line-height:19px}.lbs-upload-option-path{color:var(--dsw-alias-label-tertiary);font:11px/18px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
       .lbs-toggle-icon{display:block;transform:scaleX(-1)}.lbs-nav-icon{background:transparent;border:0;height:18px;width:18px}.lbs-right-sidebar[data-expanded=false] .lbs-nav-icon{height:18px;width:18px}
       .lbs-settings-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr);gap:16px}.lbs-settings-section{padding:2px 0}.lbs-settings-list{display:flex;flex-direction:column;gap:0}.lbs-settings-row{appearance:none;background:transparent;border:0;border-bottom:1px solid var(--dsw-alias-line-border);border-radius:8px;color:inherit;cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 0;text-align:left;width:100%}.lbs-settings-row:hover{background:var(--dsw-alias-interactive-bg-hover)}.lbs-settings-row>div:first-child{flex:1;min-width:0}.lbs-settings-row:last-child{border-bottom:0}.lbs-settings-row-arrow{color:var(--dsw-alias-label-tertiary);display:flex;flex:none}@media(max-width:900px){.lbs-settings-grid{grid-template-columns:1fr}}
@@ -123,6 +121,7 @@ window.__ModuleLoader__.load({
       .lbs-knowledge-modal{border-radius:13px}.lbs-knowledge-modal-head{padding:13px 16px}.lbs-knowledge-modal-section{padding:16px 18px}.lbs-knowledge-modal-footer{padding:11px 16px}.lbs-knowledge-activity-modal{max-width:700px}.lbs-knowledge-activity-overview{background:var(--dsw-alias-bg-layer-2);border-bottom:1px solid var(--dsw-alias-line-border);display:grid;grid-template-columns:repeat(3,1fr);padding:14px 18px}.lbs-knowledge-activity-stat{display:flex;flex-direction:column;gap:1px}.lbs-knowledge-activity-stat+.lbs-knowledge-activity-stat{border-left:1px solid var(--dsw-alias-line-border);padding-left:18px}.lbs-knowledge-activity-stat strong{font-size:16px;font-weight:600;line-height:23px}.lbs-knowledge-activity-stat span{color:var(--dsw-alias-label-tertiary);font-size:10px}.lbs-knowledge-activity-note{background:rgba(92,117,255,.07);border-bottom:1px solid var(--dsw-alias-line-border);color:var(--dsw-alias-label-secondary);font-size:11px;line-height:18px;padding:10px 18px}.lbs-knowledge-activity-section{padding:15px 18px 18px}.lbs-knowledge-activity-heading{align-items:center;display:flex;justify-content:space-between;margin-bottom:9px}.lbs-knowledge-timeline{display:flex;flex-direction:column}.lbs-knowledge-timeline-item{align-items:center;display:grid;grid-template-columns:15px 30px minmax(0,1fr) 106px;min-height:54px}.lbs-knowledge-timeline-rail{align-self:stretch;position:relative}.lbs-knowledge-timeline-rail:before{background:var(--dsw-alias-line-border);bottom:0;content:"";left:7px;position:absolute;top:0;width:1px}.lbs-knowledge-timeline-rail>span{background:var(--dsw-alias-brand-primary);border:3px solid var(--dsw-alias-bg-layer-1);border-radius:50%;height:7px;left:4px;position:absolute;top:23px;width:7px;z-index:1}.lbs-knowledge-timeline-icon{align-items:center;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-line-border);border-radius:7px;color:var(--dsw-alias-label-secondary);display:flex;height:26px;justify-content:center;width:26px}.lbs-knowledge-timeline-copy{min-width:0;padding:6px 10px}.lbs-knowledge-timeline-copy>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-knowledge-timeline-item time{color:var(--dsw-alias-label-tertiary);font-size:10px;text-align:right;white-space:nowrap}.lbs-knowledge-activity-loading,.lbs-knowledge-activity-empty{align-items:center;color:var(--dsw-alias-label-tertiary);display:flex;font-size:11px;gap:8px;justify-content:center;min-height:110px}.lbs-knowledge-activity-empty{border:1px dashed var(--dsw-alias-line-border);border-radius:9px}
       @media(max-width:760px){.lbs-knowledge-toolbar{grid-template-columns:minmax(0,1fr) auto 30px}.lbs-knowledge-search{grid-column:1/-1}.lbs-knowledge-toolbar-count{justify-self:end}.lbs-knowledge-table{min-width:0}.lbs-knowledge-table-head,.lbs-knowledge-row{grid-template-columns:minmax(0,1fr) 96px 108px}.lbs-knowledge-table-head>span:nth-child(2),.lbs-knowledge-table-head>span:nth-child(4),.lbs-knowledge-table-head>span:nth-child(5),.lbs-knowledge-table-head>span:nth-child(6),.lbs-knowledge-row>.lbs-knowledge-cell:nth-child(2),.lbs-knowledge-row>.lbs-knowledge-cell:nth-child(4),.lbs-knowledge-row>.lbs-knowledge-cell:nth-child(5),.lbs-knowledge-row>.lbs-knowledge-cell:nth-child(6){display:none}.lbs-knowledge-head-summary span{display:none}.lbs-knowledge-timeline-item{grid-template-columns:15px 30px minmax(0,1fr)}.lbs-knowledge-timeline-item time{grid-column:3;padding:0 10px 7px;text-align:left}.lbs-knowledge-modal-head .lbs-badge{display:none}}
       @media(max-width:600px){.lbs-knowledge-toolbar{grid-template-columns:minmax(0,1fr) 30px}.lbs-knowledge-filters{overflow:auto}.lbs-knowledge-toolbar-count{display:none}.lbs-knowledge-table-head,.lbs-knowledge-row{grid-template-columns:minmax(0,1fr) 100px}.lbs-knowledge-table-head>span:nth-child(3),.lbs-knowledge-row>.lbs-knowledge-cell:nth-child(3){display:none}.lbs-knowledge-activity-overview{grid-template-columns:repeat(3,1fr);padding:12px 14px}.lbs-knowledge-activity-stat+.lbs-knowledge-activity-stat{padding-left:10px}.lbs-knowledge-activity-note,.lbs-knowledge-activity-section{padding-left:14px;padding-right:14px}.lbs-knowledge-activity-modal .lbs-knowledge-modal-footer>.lbs-meta{display:none}}
+      .lbs-knowledge-image-thumb{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-line-border);border-radius:7px;height:28px;object-fit:cover;width:28px}.lbs-knowledge-image-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));margin-top:2px}.lbs-knowledge-image-card{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-line-border);border-radius:9px;display:flex;flex-direction:column;min-width:0;overflow:hidden}.lbs-knowledge-image-card img{aspect-ratio:16/10;background:var(--dsw-alias-bg-layer-2);display:block;object-fit:contain;width:100%}.lbs-knowledge-image-card span{color:var(--dsw-alias-label-tertiary);font:9px/24px ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden;padding:0 7px;text-overflow:ellipsis;white-space:nowrap}.lbs-retrieval-images{display:flex;gap:6px;margin-top:8px}.lbs-retrieval-images img{border:1px solid var(--dsw-alias-line-border);border-radius:6px;height:54px;object-fit:cover;width:76px}.lbs-knowledge-document-has-images{align-items:center;color:#6f8cff;display:inline-flex;gap:3px}
       @media(min-width:761px){.lbs-knowledge-table{min-width:780px}.lbs-knowledge-table-head,.lbs-knowledge-row{grid-template-columns:minmax(220px,1fr) 78px 94px 62px 62px 124px 126px}}
       .lbs-knowledge-modal .lbs-button{border:1px solid transparent;transition:background .12s,border-color .12s,filter .12s}.lbs-knowledge-modal .lbs-button:not(.secondary):not(.danger){background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-base)}.lbs-knowledge-modal .lbs-button:not(.secondary):not(.danger):hover{filter:brightness(.92)}.lbs-knowledge-modal .lbs-button.secondary{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-line-border);color:var(--dsw-alias-label-primary)}.lbs-knowledge-modal .lbs-button.secondary:hover{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-line-border-hover)}.lbs-knowledge-modal .lbs-button:disabled{filter:none;opacity:.42}
       @media(max-width:720px){.lbs-grid,.lbs-split{grid-template-columns:1fr}.lbs-panel{min-height:auto}}
@@ -196,17 +195,24 @@ window.__ModuleLoader__.load({
       conversation: Primitives.IconNewChatOutline16,
       files: Primitives.IconFolderOpenOutline16,
       git: Primitives.IconBranchOutline16,
-      workflows: Primitives.IconChecklistOutline14,
       knowledge: Primitives.IconDataOutline16,
       skills: Primitives.IconSkillOutline16,
-      mcp: Primitives.IconApiOutline14,
-      terminal: Primitives.IconCodeOutline16,
+      mcp: Primitives.IconCodeOutline16,
+      terminal: Primitives.IconApiOutline14,
       browser: Primitives.IconBrowseOutline16,
       ssh: Primitives.IconLinkOutline16,
       apps: Primitives.IconCordisPluginOutline14,
       settings: Primitives.IconSettingsOutline16,
     };
     const ProjectNavIcon = ({ id }) => {
+      if (id === "trajectory") {
+        return h("svg", { className: "lbs-nav-svg", viewBox: "0 0 16 16", width: 16, height: 16, fill: "none", stroke: "currentColor", strokeWidth: 1.35, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true, focusable: "false" },
+          h("circle", { cx: 3.5, cy: 3, r: 1.25 }),
+          h("circle", { cx: 12.5, cy: 8, r: 1.25 }),
+          h("circle", { cx: 3.5, cy: 13, r: 1.25 }),
+          h("path", { d: "M4.75 3h1.5a6.25 6.25 0 0 1 6.25 5M11.25 8h-1.5a6.25 6.25 0 0 0-6.25 5" }),
+        );
+      }
       const Icon = projectIcons[id] || Primitives.IconFolderOpenOutline16;
       return h(Icon, { size: 16, className: "lbs-nav-svg" });
     };
@@ -218,9 +224,6 @@ window.__ModuleLoader__.load({
         activity: [h("path", { key: "a", d: "M3 12a9 9 0 1 0 3-6.7" }), h("path", { key: "b", d: "M3 4v5h5" }), h("path", { key: "c", d: "M12 7v5l3 2" })],
         refresh: [h("path", { key: "a", d: "M20 6v5h-5" }), h("path", { key: "b", d: "M4 18v-5h5" }), h("path", { key: "c", d: "M18.4 9A7 7 0 0 0 6.7 6.7L4 9" }), h("path", { key: "d", d: "M5.6 15A7 7 0 0 0 17.3 17.3L20 15" })],
         search: [h("circle", { key: "a", cx: 11, cy: 11, r: 7 }), h("path", { key: "b", d: "m20 20-4-4" })],
-        eye: [h("path", { key: "a", d: "M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" }), h("circle", { key: "b", cx: 12, cy: 12, r: 2.5 })],
-        power: [h("path", { key: "a", d: "M12 2v10" }), h("path", { key: "b", d: "M6.3 5.7a8 8 0 1 0 11.4 0" })],
-        workflow: [h("rect", { key: "a", x: 3, y: 4, width: 7, height: 5, rx: 1 }), h("rect", { key: "b", x: 14, y: 15, width: 7, height: 5, rx: 1 }), h("path", { key: "c", d: "M10 6.5h2a4 4 0 0 1 4 4V15" }), h("path", { key: "d", d: "m13.5 12.5 2.5 2.5 2.5-2.5" })],
         trash: [h("path", { key: "a", d: "M3 6h18" }), h("path", { key: "b", d: "M8 6V4h8v2" }), h("path", { key: "c", d: "m19 6-1 15H6L5 6" }), h("path", { key: "d", d: "M10 11v5M14 11v5" })],
         close: [h("path", { key: "a", d: "m6 6 12 12" }), h("path", { key: "b", d: "M18 6 6 18" })],
         document: [h("path", { key: "a", d: "M6 3h8l4 4v14H6Z" }), h("path", { key: "b", d: "M14 3v5h5" }), h("path", { key: "c", d: "M9 13h6M9 17h6" })],
@@ -250,7 +253,6 @@ window.__ModuleLoader__.load({
     const workbenchNavigation = [
       { id: "files", label: "文件管理器", icon: "文" },
       { id: "git", label: "版本中心", icon: "G" },
-      { id: "workflows", label: "工作流", icon: "流" },
       { id: "knowledge", label: "知识库", icon: "知" },
     ];
     const integrationNavigation = [
@@ -398,10 +400,12 @@ window.__ModuleLoader__.load({
       const [name, setName] = useState("");
       const [description, setDescription] = useState("");
       const [agentEnabled, setAgentEnabled] = useState(false);
+      const [documentEditorOpen, setDocumentEditorOpen] = useState(false);
       const [documentId, setDocumentId] = useState("");
       const [documentRevision, setDocumentRevision] = useState("");
       const [documentTitle, setDocumentTitle] = useState("");
       const [documentSource, setDocumentSource] = useState("");
+      const [documentImageUrls, setDocumentImageUrls] = useState("");
       const [documentContent, setDocumentContent] = useState("");
       const [searchQuery, setSearchQuery] = useState("");
       const [searchResults, setSearchResults] = useState([]);
@@ -419,11 +423,12 @@ window.__ModuleLoader__.load({
         });
       }, [collectionFilter, collectionQuery, collections]);
       const collectionTotals = useMemo(() => collections.reduce((total, item) => ({ documents: total.documents + Number(item.documentCount || 0), chunks: total.chunks + Number(item.chunkCount || 0) }), { documents: 0, chunks: 0 }), [collections]);
+      const parsedDocumentImageUrls = useMemo(() => [...new Set(documentImageUrls.split(/\r?\n/u).map((value) => value.trim()).filter(Boolean))].slice(0, 12), [documentImageUrls]);
       const activityEntries = useMemo(() => {
         if (!activityCollection) return [];
         return [
           { id: `collection-${activityCollection.id}`, type: "collection", title: "知识库配置最近更新", description: `${activityCollection.agentEnabled ? "可召回" : "已暂停"} · ${activityCollection.scope === "workspace" ? "当前项目" : "全局"}`, updatedAt: activityCollection.updatedAt },
-          ...activityDocuments.map((document) => ({ id: document.id, type: "document", title: document.title, description: `${document.chunkCount} 个片段 · ${document.contentLength} 字符${document.source ? ` · ${document.source}` : ""}`, updatedAt: document.updatedAt })),
+          ...activityDocuments.map((document) => ({ id: document.id, type: "document", title: document.title, description: `${document.chunkCount} 个片段 · ${document.contentLength} 字符${document.imageUrls?.length ? ` · ${document.imageUrls.length} 张图片` : ""}${document.source ? ` · ${document.source}` : ""}`, updatedAt: document.updatedAt })),
         ].sort((left, right) => Number(new Date(right.updatedAt || 0)) - Number(new Date(left.updatedAt || 0)));
       }, [activityCollection, activityDocuments]);
 
@@ -504,19 +509,24 @@ window.__ModuleLoader__.load({
         setSelectedId(""); setActivityId(collection.id); setMessage(""); setError("");
       }
       function cancelDocumentEdit() {
-        setDocumentId(""); setDocumentRevision(""); setDocumentTitle(""); setDocumentSource(""); setDocumentContent("");
+        setDocumentEditorOpen(false); setDocumentId(""); setDocumentRevision(""); setDocumentTitle(""); setDocumentSource(""); setDocumentImageUrls(""); setDocumentContent("");
+      }
+      function createDocument() {
+        cancelDocumentEdit();
+        setDocumentEditorOpen(true);
       }
       async function editDocument(document) {
         try {
           const detail = await request(`/knowledge/documents/${encodeURIComponent(document.id)}`);
+          setDocumentEditorOpen(true);
           setDocumentId(detail.id); setDocumentRevision(detail.revision); setDocumentTitle(detail.title);
-          setDocumentSource(detail.source || ""); setDocumentContent(detail.content); setMessage(""); setError("");
+          setDocumentSource(detail.source || ""); setDocumentImageUrls((detail.imageUrls || []).join("\n")); setDocumentContent(detail.content); setMessage(""); setError("");
         } catch (reason) { setError(reason.message); }
       }
       async function saveDocument() {
         if (!selected) return;
         try {
-          await request("/knowledge/documents", { method: "POST", body: JSON.stringify({ id: documentId, expectedRevision: documentRevision, collectionId: selected.id, title: documentTitle, source: documentSource, content: documentContent }) });
+          await request("/knowledge/documents", { method: "POST", body: JSON.stringify({ id: documentId || undefined, expectedRevision: documentRevision || undefined, collectionId: selected.id, title: documentTitle, source: documentSource, imageUrls: parsedDocumentImageUrls, content: documentContent }) });
           cancelDocumentEdit(); await load(selected.id); setMessage("知识内容已更新并重新建立索引。"); setError("");
         } catch (reason) { setError(reason.message); }
       }
@@ -614,18 +624,21 @@ window.__ModuleLoader__.load({
                 searchResults.length ? h("div", { className: "lbs-retrieval-results" }, searchResults.map((result, index) => h("article", { key: `${result.chunkId || result.documentId}-${index}`, className: "lbs-retrieval-result" },
                   h("div", { className: "lbs-between" }, h("div", null, h("div", { className: "lbs-card-title" }, result.title), h("div", { className: "lbs-meta" }, result.source || `片段 ${Number(result.ordinal || 0) + 1}`)), h("span", { className: "lbs-relevance", "data-level": relevanceLabel(result.score) }, relevanceLabel(result.score))),
                   h("p", { className: "lbs-retrieval-snippet" }, result.content),
+                  result.imageUrls?.length ? h("div", { className: "lbs-retrieval-images" }, result.imageUrls.slice(0, 4).map((url, imageIndex) => h("img", { key: `${url}:${imageIndex}`, src: url, alt: `${result.title} 图片 ${imageIndex + 1}`, loading: "lazy", referrerPolicy: "no-referrer" }))) : null,
                 ))) : null,
               ),
               h("section", { className: "lbs-knowledge-modal-section" },
-                h("div", { className: "lbs-knowledge-modal-section-head" }, h("div", null, h("div", { className: "lbs-knowledge-modal-section-title" }, "资料"), h("div", { className: "lbs-meta" }, "Agent 写入后会自动切片并建立本地索引。")), h("span", { className: "lbs-meta" }, "自动同步")),
+                h("div", { className: "lbs-knowledge-modal-section-head" }, h("div", null, h("div", { className: "lbs-knowledge-modal-section-title" }, "资料"), h("div", { className: "lbs-meta" }, "正文会建立本地索引，HTTP(S) 图片 URL 会安全渲染。")), h(Button, { secondary: true, onClick: createDocument }, "添加资料")),
                 h("div", { className: "lbs-knowledge-documents" }, documents.length ? documents.map((document) => h("article", { key: document.id, className: "lbs-knowledge-document" },
-                  h("span", { className: "lbs-knowledge-document-icon" }, h(LineIcon, { name: "document", size: 15 })),
-                  h("div", { className: "lbs-knowledge-document-copy" }, h("div", { className: "lbs-card-title" }, document.title), h("div", { className: "lbs-meta" }, `${document.chunkCount} 个片段 · ${document.contentLength} 字符${document.source ? ` · ${document.source}` : ""}`)),
+                  document.imageUrls?.[0] ? h("img", { className: "lbs-knowledge-image-thumb", src: document.imageUrls[0], alt: "", loading: "lazy", referrerPolicy: "no-referrer" }) : h("span", { className: "lbs-knowledge-document-icon" }, h(LineIcon, { name: "document", size: 15 })),
+                  h("div", { className: "lbs-knowledge-document-copy" }, h("div", { className: "lbs-card-title" }, document.title), h("div", { className: "lbs-meta" }, `${document.chunkCount} 个片段 · ${document.contentLength} 字符${document.imageUrls?.length ? ` · ${document.imageUrls.length} 张图片` : ""}${document.source ? ` · ${document.source}` : ""}`)),
                   h("div", { className: "lbs-knowledge-document-actions" }, h("button", { type: "button", className: "lbs-icon-action", onClick: () => editDocument(document), title: "编辑资料", "aria-label": `编辑资料 ${document.title}` }, h(LineIcon, { name: "edit" })), h("button", { type: "button", className: "lbs-icon-action danger", onClick: () => removeDocument(document), title: "删除资料", "aria-label": `删除资料 ${document.title}` }, h(LineIcon, { name: "trash" }))),
                 )) : h("div", { className: "lbs-help" }, "暂无资料。你可以在对话中让 Agent 记住重要信息。")),
-                documentId ? h("div", { className: "lbs-knowledge-editor" },
-                  h("div", { className: "lbs-between" }, h("div", { className: "lbs-card-title" }, "编辑资料"), h("button", { type: "button", className: "lbs-icon-action", onClick: cancelDocumentEdit, title: "收起", "aria-label": "收起资料编辑" }, h(LineIcon, { name: "close" }))),
+                documentEditorOpen ? h("div", { className: "lbs-knowledge-editor" },
+                  h("div", { className: "lbs-between" }, h("div", { className: "lbs-card-title" }, documentId ? "编辑资料" : "添加资料"), h("button", { type: "button", className: "lbs-icon-action", onClick: cancelDocumentEdit, title: "收起", "aria-label": "收起资料编辑" }, h(LineIcon, { name: "close" }))),
                   h("div", { className: "lbs-split" }, h(Field, { label: "标题", value: documentTitle, onChange: (event) => setDocumentTitle(event.target.value) }), h(Field, { label: "来源", value: documentSource, onChange: (event) => setDocumentSource(event.target.value) })),
+                  h(Field, { label: "图片 URL（每行一个，最多 12 个，仅支持 HTTP/HTTPS）", area: true, code: true, value: documentImageUrls, onChange: (event) => setDocumentImageUrls(event.target.value), placeholder: "https://example.com/image.png" }),
+                  parsedDocumentImageUrls.length ? h("div", { className: "lbs-knowledge-image-grid", "aria-label": "图片预览" }, parsedDocumentImageUrls.map((url, imageIndex) => h("div", { className: "lbs-knowledge-image-card", key: `${url}:${imageIndex}` }, h("img", { src: url, alt: `${documentTitle || "知识资料"} 图片 ${imageIndex + 1}`, loading: "lazy", referrerPolicy: "no-referrer" }), h("span", { title: url }, url)))) : null,
                   h(Field, { label: "正文", area: true, code: true, value: documentContent, onChange: (event) => setDocumentContent(event.target.value) }),
                   h(Button, { onClick: saveDocument, disabled: !documentTitle.trim() || !documentContent.trim() }, "保存并重新索引"),
                 ) : null,
@@ -675,341 +688,6 @@ window.__ModuleLoader__.load({
             ),
           ),
         ) : null,
-      );
-    }
-
-    function WorkflowGraph({ definition, selectedNodeId, onSelectNode }) {
-      const graph = useMemo(() => {
-        const nodes = definition?.nodes || [];
-        if (!nodes.length) return null;
-        const minX = Math.min(...nodes.map((node) => node.position?.x || 0));
-        const minY = Math.min(...nodes.map((node) => node.position?.y || 0));
-        const maxX = Math.max(...nodes.map((node) => node.position?.x || 0));
-        const maxY = Math.max(...nodes.map((node) => node.position?.y || 0));
-        const width = Math.max(500, maxX - minX + 220), height = Math.max(260, maxY - minY + 140);
-        const positions = Object.fromEntries(nodes.map((node) => [node.id, { x: (node.position?.x || 0) - minX + 20, y: (node.position?.y || 0) - minY + 30 }]));
-        return { nodes, edges: definition.edges || [], positions, width, height };
-      }, [definition]);
-      if (!graph) return h("div", { className: "lbs-empty" }, "没有可视化节点");
-      return h("svg", { className: "lbs-svg", viewBox: `0 0 ${graph.width} ${graph.height}`, preserveAspectRatio: "xMidYMid meet" },
-        h("defs", null, h("marker", { id: "lbs-arrow", markerWidth: 8, markerHeight: 8, refX: 7, refY: 4, orient: "auto" }, h("path", { d: "M0,0 L8,4 L0,8 Z", fill: "var(--dsw-alias-label-tertiary)" }))),
-        graph.edges.map((edge) => { const a = graph.positions[edge.source], b = graph.positions[edge.target]; return a && b ? h("path", { key: edge.id, className: "lbs-edge", markerEnd: "url(#lbs-arrow)", d: `M${a.x + 150},${a.y + 30} C${a.x + 190},${a.y + 30} ${b.x - 40},${b.y + 30} ${b.x},${b.y + 30}` }) : null; }),
-        graph.nodes.map((node) => {
-          const p = graph.positions[node.id];
-          const selectable = typeof onSelectNode === "function";
-          return h("g", {
-            key: node.id,
-            className: "lbs-node-group",
-            transform: `translate(${p.x} ${p.y})`,
-            "data-selectable": selectable,
-            "data-selected": node.id === selectedNodeId,
-            role: selectable ? "button" : undefined,
-            tabIndex: selectable ? 0 : undefined,
-            onClick: selectable ? () => onSelectNode(node) : undefined,
-            onKeyDown: selectable ? (event) => { if (["Enter", " "].includes(event.key)) onSelectNode(node); } : undefined,
-          }, h("rect", { className: "lbs-node", width: 150, height: 60, rx: 10 }), h("text", { className: "lbs-node-title", x: 12, y: 25 }, node.label || node.id), h("text", { className: "lbs-node-type", x: 12, y: 44 }, node.type));
-        }),
-      );
-    }
-
-    function WorkflowsSection() {
-      const [workflows, setWorkflows] = useState([]);
-      const [selectedId, setSelectedId] = useState("");
-      const [dialogMode, setDialogMode] = useState("view");
-      const [loading, setLoading] = useState(true);
-      const [refreshing, setRefreshing] = useState(false);
-      const [name, setName] = useState(""); const [description, setDescription] = useState(""); const [toolName, setToolName] = useState("");
-      const [definition, setDefinition] = useState(null);
-      const [selectedNodeId, setSelectedNodeId] = useState("");
-      const [nodeLabel, setNodeLabel] = useState("");
-      const [nodeConfigText, setNodeConfigText] = useState("{}");
-      const [runInput, setRunInput] = useState('{"message":"你好","count":2}');
-      const [message, setMessage] = useState(""); const [error, setError] = useState("");
-      const selected = workflows.find((item) => item.id === selectedId);
-      const selectedNode = definition?.nodes.find((node) => node.id === selectedNodeId);
-      const load = useCallback(async (preferred, background = false) => {
-        if (background) setRefreshing(true);
-        try {
-          const next = await request("/workflows");
-          setWorkflows(next);
-          setSelectedId((current) => {
-            const candidate = preferred || current;
-            return candidate && next.some((item) => item.id === candidate) ? candidate : "";
-          });
-          setError("");
-        } catch (reason) { setError(reason.message); }
-        finally { setLoading(false); setRefreshing(false); }
-      }, []);
-      useEffect(() => { load(); }, [load]);
-      useEffect(() => {
-        if (!selected) return;
-        setName(selected.name); setDescription(selected.description); setToolName(selected.toolName);
-        setDefinition(selected.definition);
-        loadNodeEditor(selected.definition.nodes[0]);
-      }, [selectedId, selected?.revision]);
-
-      function loadNodeEditor(node) {
-        if (!node) { setSelectedNodeId(""); setNodeLabel(""); setNodeConfigText("{}"); return; }
-        const config = { ...node };
-        delete config.id; delete config.type; delete config.label;
-        setSelectedNodeId(node.id);
-        setNodeLabel(node.label || "");
-        setNodeConfigText(JSON.stringify(config, null, 2));
-      }
-
-      function openWorkflow(workflow, mode) {
-        setDialogMode(mode);
-        setSelectedId(workflow.id);
-        setMessage("");
-        setError("");
-      }
-
-      function closeWorkflow() {
-        setSelectedId("");
-        setMessage("");
-        setError("");
-      }
-
-      function selectNode(node) {
-        try {
-          const nextDefinition = editedDefinition();
-          const nextNode = nextDefinition?.nodes.find((item) => item.id === node.id) || node;
-          setDefinition(nextDefinition);
-          loadNodeEditor(nextNode);
-          setError("");
-        } catch (reason) {
-          setError(`请先修正当前节点参数：${reason.message}`);
-        }
-      }
-
-      function editedDefinition() {
-        if (!selectedNode || !definition) return definition;
-        const config = JSON.parse(nodeConfigText);
-        if (!config || typeof config !== "object" || Array.isArray(config)) throw new Error("节点参数必须是 JSON 对象。");
-        delete config.id; delete config.type; delete config.label;
-        return {
-          ...definition,
-          nodes: definition.nodes.map((node) => node.id === selectedNode.id ? {
-            id: node.id,
-            type: node.type,
-            ...(nodeLabel.trim() ? { label: nodeLabel.trim() } : {}),
-            ...config,
-          } : node),
-        };
-      }
-
-      async function save(notify = true) {
-        try {
-          const nextDefinition = editedDefinition();
-          const saved = await request("/workflows", { method: "POST", body: JSON.stringify({ id: selected.id, expectedRevision: selected.revision, name, description, toolName, definition: nextDefinition }) });
-          setDefinition(nextDefinition);
-          await load(saved.id);
-          if (notify) setMessage("工作流微调已保存。");
-          setError("");
-          return saved;
-        } catch (reason) {
-          setError(reason.message);
-          return null;
-        }
-      }
-      async function publish() {
-        try {
-          const saved = await save(false);
-          if (!saved) return;
-          const value = await request(`/workflows/${encodeURIComponent(saved.id)}/publish`, { method: "POST", body: JSON.stringify({ expectedRevision: saved.revision }) });
-          await load(saved.id);
-          setMessage(`已发布并${value.enabled ? "启用" : "保持停用"} v${value.version}，虚拟插件：${value.toolName}`);
-          setError("");
-        }
-        catch (reason) { setError(reason.message); }
-      }
-      async function setEnabled(workflow, enabled) {
-        try {
-          const value = await request(`/workflows/${encodeURIComponent(workflow.id)}/enabled`, { method: "POST", body: JSON.stringify({ enabled, expectedRevision: workflow.revision }) });
-          await load(selectedId === workflow.id ? value.id : undefined);
-          setMessage(enabled ? "虚拟工作流插件已启用。" : "虚拟工作流插件已停用，工作流和版本仍然保留。");
-          setError("");
-        } catch (reason) { setError(reason.message); }
-      }
-      async function run() {
-        try {
-          const input = JSON.parse(runInput);
-          const saved = await save(false);
-          if (!saved) return;
-          const value = await request(`/workflows/${encodeURIComponent(saved.id)}/run`, { method: "POST", body: JSON.stringify({ input }) });
-          setMessage(JSON.stringify(value.output, null, 2));
-          setError("");
-        }
-        catch (reason) { setError(reason.message); }
-      }
-      async function remove(workflow = selected) {
-        if (!workflow || !confirm(`删除工作流“${workflow.name}”？对应的虚拟插件和全部发布版本也会删除。`)) return;
-        try { await request(`/workflows/${encodeURIComponent(workflow.id)}?revision=${encodeURIComponent(workflow.revision)}`, { method: "DELETE" }); setSelectedId(""); await load(); setMessage("工作流及虚拟插件已删除。"); }
-        catch (reason) { setError(reason.message); }
-      }
-
-      function formatUpdatedAt(value) {
-        if (!value) return "—";
-        try { return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
-        catch { return "—"; }
-      }
-
-      return h("div", { className: "lbs-page lbs-workflow-page" },
-        h(PageHeader, { title: "工作流", subtitle: "Agent 负责创建和维护；你可以从列表查看、编辑、启停或删除。", action: h("div", { className: "lbs-row" }, h("span", { className: "lbs-meta" }, `${workflows.length} 个工作流 · ${workflows.filter((item) => item.enabled).length} 个已启用`), h("button", { type: "button", className: classNames("lbs-icon-action", refreshing && "is-spinning"), onClick: () => load(undefined, true), title: "刷新列表", "aria-label": "刷新工作流列表", disabled: refreshing }, h(LineIcon, { name: "refresh" }))) }),
-        h(Status, { error: true, message: error }), h(Status, { message }),
-        h("section", { className: "lbs-panel lbs-workflow-list-panel" },
-          loading ? h("div", { className: "lbs-knowledge-list-empty compact" }, h("span", { className: "lbs-knowledge-loading" }), h("div", null, h("div", { className: "lbs-card-title" }, "正在加载工作流"), h("div", { className: "lbs-meta" }, "正在同步 Agent 自动化状态…")))
-            : workflows.length ? h("div", { className: "lbs-workflow-table-scroll" },
-              h("div", { className: "lbs-workflow-table", role: "table", "aria-label": "工作流列表" },
-                h("div", { className: "lbs-workflow-table-head", role: "row" },
-                  h("span", { role: "columnheader" }, "工作流"), h("span", { role: "columnheader" }, "Agent 工具"), h("span", { role: "columnheader" }, "状态"), h("span", { role: "columnheader" }, "节点"), h("span", { role: "columnheader" }, "最近更新"), h("span", { role: "columnheader" }, "操作"),
-                ),
-                workflows.map((item) => h("article", { key: item.id, className: "lbs-workflow-row", role: "row" },
-                  h("div", { className: "lbs-workflow-cell lbs-workflow-primary", role: "cell" },
-                    h("button", { type: "button", className: "lbs-workflow-primary-button", onClick: () => openWorkflow(item, "view"), title: `查看 ${item.name}` }, h("span", { className: "lbs-workflow-list-icon" }, h(LineIcon, { name: "workflow", size: 16 })), h("span", { className: "lbs-workflow-row-copy" }, h("span", { className: "lbs-card-title" }, item.name), h("span", { className: "lbs-meta" }, item.description || "Agent 创建的可复用自动化"))),
-                  ),
-                  h("code", { className: "lbs-workflow-cell lbs-workflow-tool-name", role: "cell", title: item.toolName }, item.toolName),
-                  h("div", { className: "lbs-workflow-cell", role: "cell" }, h("span", { className: "lbs-workflow-list-status", "data-enabled": item.enabled }, h("span", null), item.publishedVersion ? (item.enabled ? `已启用 v${item.publishedVersion}` : `已停用 v${item.publishedVersion}`) : "草稿")),
-                  h("div", { className: "lbs-workflow-cell", role: "cell" }, String(item.definition.nodes.length)),
-                  h("time", { className: "lbs-workflow-cell", role: "cell", dateTime: item.updatedAt || undefined }, formatUpdatedAt(item.updatedAt)),
-                  h("div", { className: "lbs-workflow-cell lbs-workflow-list-actions", role: "cell" },
-                    h("button", { type: "button", className: "lbs-icon-action", onClick: () => openWorkflow(item, "view"), title: "查看", "aria-label": `查看 ${item.name}` }, h(LineIcon, { name: "eye" })),
-                    h("button", { type: "button", className: "lbs-icon-action", onClick: () => openWorkflow(item, "edit"), title: "编辑", "aria-label": `编辑 ${item.name}` }, h(LineIcon, { name: "edit" })),
-                    item.publishedVersion ? h("button", { type: "button", className: "lbs-icon-action", onClick: () => setEnabled(item, !item.enabled), title: item.enabled ? "停用" : "启用", "aria-label": `${item.enabled ? "停用" : "启用"} ${item.name}` }, h(LineIcon, { name: "power" })) : null,
-                    h("button", { type: "button", className: "lbs-icon-action danger", onClick: () => remove(item), title: "删除", "aria-label": `删除 ${item.name}` }, h(LineIcon, { name: "trash" })),
-                  ),
-                )),
-              ),
-            ) : h("div", { className: "lbs-knowledge-list-empty" }, h("span", { className: "lbs-workflow-list-icon" }, h(LineIcon, { name: "workflow", size: 19 })), h("div", null, h("div", { className: "lbs-card-title" }, "暂无工作流"), h("div", { className: "lbs-meta" }, "直接在对话中让 Agent 创建一个可复用流程。"))),
-        ),
-        selected ? h("div", { className: "lbs-knowledge-modal-layer" },
-          h("button", { type: "button", className: "lbs-knowledge-modal-backdrop", onClick: closeWorkflow, "aria-label": "关闭工作流窗口" }),
-          h("section", { className: "lbs-knowledge-modal lbs-workflow-modal", role: "dialog", "aria-modal": true, "aria-labelledby": "lbs-workflow-modal-title" },
-            h("header", { className: "lbs-knowledge-modal-head" },
-              h("span", { className: "lbs-workflow-list-icon" }, h(LineIcon, { name: "workflow", size: 17 })),
-              h("div", { className: "lbs-knowledge-modal-head-copy" }, h("div", { id: "lbs-workflow-modal-title", className: "lbs-knowledge-modal-title" }, selected.name), h("div", { className: "lbs-meta" }, dialogMode === "edit" ? "编辑工作流信息和节点参数" : "查看工作流结构和发布状态")),
-              h("span", { className: "lbs-badge" }, dialogMode === "edit" ? "编辑" : "查看"),
-              h("button", { type: "button", className: "lbs-icon-action", onClick: closeWorkflow, title: "关闭", "aria-label": "关闭" }, h(LineIcon, { name: "close", size: 18 })),
-            ),
-            h("div", { className: "lbs-knowledge-modal-scroll" },
-              error || message ? h("div", { className: "lbs-knowledge-modal-feedback" }, h(Status, { error: true, message: error }), h(Status, { message })) : null,
-              h("section", { className: "lbs-knowledge-modal-section" },
-                h("div", { className: "lbs-workflow-modal-summary" },
-                  h("div", { className: "lbs-workflow-summary-item" }, h("strong", null, selected.publishedVersion ? `v${selected.publishedVersion}` : "草稿"), h("span", null, "当前版本")),
-                  h("div", { className: "lbs-workflow-summary-item" }, h("strong", null, selected.publishedVersion ? (selected.enabled ? "已启用" : "已停用") : "未发布"), h("span", null, "插件状态")),
-                  h("div", { className: "lbs-workflow-summary-item" }, h("strong", null, String(selected.definition.nodes.length)), h("span", null, "流程节点")),
-                  h("div", { className: "lbs-workflow-summary-item" }, h("strong", null, String(selected.definition.edges.length)), h("span", null, "节点连线")),
-                ),
-              ),
-              h("section", { className: "lbs-knowledge-modal-section" },
-                h("div", null, h("div", { className: "lbs-knowledge-modal-section-title" }, "基础信息"), h("div", { className: "lbs-meta" }, dialogMode === "edit" ? "修改名称、说明和注册给 Agent 的工具名。" : `最近更新：${formatUpdatedAt(selected.updatedAt)}`)),
-                dialogMode === "edit" ? [
-                  h("div", { key: "fields", className: "lbs-split" }, h(Field, { label: "名称", value: name, onChange: (event) => setName(event.target.value) }), h(Field, { label: "Agent 工具名", value: toolName, onChange: (event) => setToolName(event.target.value) })),
-                  h(Field, { key: "description", label: "说明", area: true, value: description, onChange: (event) => setDescription(event.target.value) }),
-                ] : h("div", { className: "lbs-workflow-readonly" },
-                  h("div", null, h("div", { className: "lbs-label" }, "Agent 工具名"), h("code", { className: "lbs-automation-tool" }, selected.toolName)),
-                  h("div", null, h("div", { className: "lbs-label" }, "说明"), h("div", { className: "lbs-meta" }, selected.description || "暂无说明")),
-                ),
-              ),
-              h("section", { className: "lbs-knowledge-modal-section" },
-                h("div", null, h("div", { className: "lbs-knowledge-modal-section-title" }, "流程图"), h("div", { className: "lbs-meta" }, dialogMode === "edit" ? "点击节点可在下方进行微调。" : "工作流结构由 Agent 维护。")),
-                h(WorkflowGraph, { definition: selectedNode && dialogMode === "edit" ? { ...definition, nodes: definition.nodes.map((node) => node.id === selectedNode.id ? { ...node, ...(nodeLabel.trim() ? { label: nodeLabel.trim() } : {}) } : node) } : selected.definition, selectedNodeId: dialogMode === "edit" ? selectedNodeId : undefined, onSelectNode: dialogMode === "edit" ? selectNode : undefined }),
-                dialogMode === "edit" && selectedNode ? h("div", { className: "lbs-workflow-node-editor" },
-                  h("div", { className: "lbs-workflow-node-head" }, h("strong", null, "节点微调"), h("span", { className: "lbs-badge" }, selectedNode.type)),
-                  h("div", { className: "lbs-meta" }, `节点 ID：${selectedNode.id}`),
-                  h(Field, { label: "显示名称", value: nodeLabel, onChange: (event) => setNodeLabel(event.target.value), placeholder: selectedNode.id }),
-                  h(Field, { label: "节点参数", area: true, code: true, value: nodeConfigText, onChange: (event) => setNodeConfigText(event.target.value) }),
-                ) : null,
-              ),
-              dialogMode === "edit" ? h("section", { className: "lbs-knowledge-modal-section" },
-                h("div", null, h("div", { className: "lbs-knowledge-modal-section-title" }, "试运行"), h("div", { className: "lbs-meta" }, "保存当前微调后使用下面的 JSON 输入执行一次。")),
-                h(Field, { label: "输入参数", area: true, code: true, value: runInput, onChange: (event) => setRunInput(event.target.value) }),
-                h(Button, { secondary: true, onClick: run }, "试运行"),
-              ) : null,
-            ),
-            h("footer", { className: "lbs-knowledge-modal-footer" },
-              h(Button, { danger: true, onClick: () => remove(selected) }, "删除工作流"),
-              dialogMode === "edit" ? h("div", { className: "lbs-knowledge-modal-footer-actions" },
-                selected.publishedVersion ? h(Button, { secondary: true, onClick: () => setEnabled(selected, !selected.enabled) }, selected.enabled ? "停用" : "启用") : null,
-                h(Button, { secondary: true, onClick: closeWorkflow }, "取消"),
-                h(Button, { secondary: true, onClick: publish }, selected.publishedVersion ? "发布新版本" : "发布并启用"),
-                h(Button, { onClick: () => save(), disabled: !name.trim() || !toolName.trim() }, "保存修改"),
-              ) : h("div", { className: "lbs-knowledge-modal-footer-actions" }, h(Button, { secondary: true, onClick: closeWorkflow }, "关闭"), h(Button, { onClick: () => setDialogMode("edit") }, "编辑")),
-            ),
-          ),
-        ) : null,
-      );
-    }
-
-    function WorkflowPluginsTab() {
-      const [workflows, setWorkflows] = useState([]);
-      const [selectedId, setSelectedId] = useState("");
-      const [message, setMessage] = useState("");
-      const [error, setError] = useState("");
-      const published = workflows.filter((item) => item.publishedVersion);
-      const selected = published.find((item) => item.id === selectedId) || published[0];
-      const load = useCallback(async (preferred) => {
-        try {
-          const next = await request("/workflows");
-          const available = next.filter((item) => item.publishedVersion);
-          setWorkflows(next);
-          setSelectedId((current) => preferred || (available.some((item) => item.id === current) ? current : available[0]?.id || ""));
-          setError("");
-        } catch (reason) { setError(reason.message); }
-      }, []);
-      useEffect(() => {
-        load();
-        const timer = window.setInterval(() => load(), 2_000);
-        return () => window.clearInterval(timer);
-      }, [load]);
-
-      async function setEnabled(workflow, enabled) {
-        try {
-          const value = await request(`/workflows/${encodeURIComponent(workflow.id)}/enabled`, {
-            method: "POST",
-            body: JSON.stringify({ enabled, expectedRevision: workflow.revision }),
-          });
-          await load(value.id);
-          setMessage(enabled ? `“${workflow.name}”已启用并注册为 Agent 工具。` : `“${workflow.name}”已停用，流程和版本仍然保留。`);
-          setError("");
-        } catch (reason) { setError(reason.message); }
-      }
-
-      async function remove(workflow) {
-        if (!confirm(`删除虚拟工作流插件“${workflow.name}”？工作流和全部发布版本会同步删除。`)) return;
-        try {
-          await request(`/workflows/${encodeURIComponent(workflow.id)}?revision=${encodeURIComponent(workflow.revision)}`, { method: "DELETE" });
-          await load();
-          setMessage(`“${workflow.name}”及其虚拟插件已删除。`);
-          setError("");
-        } catch (reason) { setError(reason.message); }
-      }
-
-      return h("div", { className: "lbs-page" },
-        h(PageHeader, { title: "Agent 自动化", subtitle: "已发布工作流会作为虚拟插件统一出现在这里；启停和删除会与工作流页面实时同步。" }),
-        h(Status, { error: true, message: error }),
-        h(Status, { message }),
-        published.length ? h("div", { className: "lbs-grid" },
-          h("section", { className: "lbs-panel lbs-automation-list", "aria-label": "虚拟工作流插件列表" }, published.map((workflow) => h("button", {
-            type: "button",
-            key: workflow.id,
-            className: "lbs-automation-card",
-            "data-active": workflow.id === selected?.id,
-            onClick: () => setSelectedId(workflow.id),
-          },
-          h("span", { className: "lbs-automation-card-copy" }, h("strong", { className: "lbs-card-title" }, workflow.name), h("small", { className: "lbs-meta" }, `${workflow.toolName} · v${workflow.publishedVersion}`)),
-          h("span", { className: "lbs-automation-state", "data-enabled": workflow.enabled }, h("span", null), workflow.enabled ? "已启用" : "已停用")))),
-          selected ? h("section", { className: "lbs-panel lbs-automation-detail" },
-            h("div", { className: "lbs-automation-detail-head" }, h("div", null, h("h2", null, selected.name), h("div", { className: "lbs-sub" }, selected.description || "Agent 生成的可复用工作流。")), h("span", { className: "lbs-badge" }, `虚拟插件 · v${selected.publishedVersion}`)),
-            h("code", { className: "lbs-automation-tool" }, selected.toolName),
-            h(WorkflowGraph, { definition: selected.definition }),
-            h("div", { className: "lbs-automation-actions" },
-              h(Button, { onClick: () => setEnabled(selected, !selected.enabled) }, selected.enabled ? "停用" : "启用"),
-              h(Button, { danger: true, onClick: () => remove(selected) }, "删除"),
-            ),
-            h("div", { className: "lbs-automation-note" }, `${selected.definition.nodes.length} 个节点 · ${selected.definition.edges.length} 条连线 · 删除后工作流管理页会同步移除`),
-          ) : null,
-        ) : h("div", { className: "lbs-empty" }, "还没有已发布的工作流。Agent 创建并发布后，会自动注册到这里。"),
       );
     }
 
@@ -2422,7 +2100,6 @@ window.__ModuleLoader__.load({
       }, [active]);
       if (active === "conversation") return null;
       const Page = {
-        workflows: WorkflowsSection,
         knowledge: KnowledgeSection,
         skills: SkillsSection,
         mcp: McpSection,
@@ -2596,7 +2273,16 @@ window.__ModuleLoader__.load({
           const assistants = group.nodes.filter(
             (node) => flowKind(node) === "assistant-step",
           );
-          const finalAnswer = group.completed ? assistants.at(-1) : undefined;
+          const hasVisibleAnswer = (node) => {
+            const clone = node.cloneNode(true);
+            for (const thinking of clone.querySelectorAll("[data-variant=think]")) {
+              thinking.remove();
+            }
+            return Boolean(clone.textContent?.trim());
+          };
+          const finalAnswer = group.completed
+            ? assistants.findLast(hasVisibleAnswer)
+            : undefined;
           const preserved = new Set(
             group.completed
               ? group.nodes.filter((node) =>
@@ -3440,12 +3126,6 @@ window.__ModuleLoader__.load({
         order: 15,
         label: () => "文件上传",
       }, UploadCacheSettingsSection));
-      ctx.slots.inject("settings.plugins.tab", () => ctx.slots.register({
-        name: "settings.plugins.tab",
-        id: "laobos-workflow-plugins",
-        order: 20,
-        label: () => "Agent 自动化",
-      }, WorkflowPluginsTab));
     }
     exports.apply = apply;
     exports.inject = inject;

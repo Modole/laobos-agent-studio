@@ -7,23 +7,29 @@ import test from "node:test";
 import {
   detectApplication,
   findFreeApplicationPort,
+  isTcpPortFree,
   MANAGED_APP_MAX_PORT,
   MANAGED_APP_MIN_PORT,
   normalizeManagedAppPort,
   registerAppsIpc,
   splitArgs,
 } from "../desktop/domains/apps.mjs";
-import { normalizeBrowserUrl } from "../desktop/domains/browser.mjs";
-import { safePdfName } from "../desktop/domains/conversation-export.mjs";
+import { friendlyNavigationError, normalizeBrowserUrl } from "../desktop/domains/browser.mjs";
+import { registerClipboardIpc } from "../desktop/domains/clipboard.mjs";
+import { safeHtmlName } from "../desktop/domains/conversation-export.mjs";
 import { DesktopSettingsStore } from "../desktop/domains/desktop-settings.mjs";
 import { parseGitStatus } from "../desktop/domains/git-review.mjs";
 import { isPathInside, resolveAuthorizedPath } from "../desktop/ipc-security.mjs";
+import { WorkspaceAuthorization } from "../desktop/workspace-authorization.mjs";
+import { installPermissionPolicy, isTrustedRuntimePermission } from "../desktop/permissions.mjs";
 import { findSessionDirectory } from "../desktop/domains/session-trash.mjs";
 import { fingerprint } from "../desktop/domains/ssh.mjs";
 import {
   copyManagedUploadFiles,
   managedUploadRoot,
+  mediaTypeFor,
   readPickedAttachments,
+  registerWorkspaceFilesIpc,
   safeUploadFileName,
   storeManagedPastedFiles,
 } from "../desktop/domains/workspace-files.mjs";
@@ -33,6 +39,60 @@ import {
   registerTerminalIpc,
   tmuxSessionName,
 } from "../desktop/domains/terminal.mjs";
+import { languageForPath, parseUnifiedDiff, tokenizeCodeLine } from "../packages/laobos-workspace-tools/src/code-renderer.mjs";
+
+test("desktop clipboard writes through the trusted main process", () => {
+  const handlers = new Map();
+  const removed = [];
+  const writes = [];
+  let authorized = false;
+  const dispose = registerClipboardIpc({
+    ipcMain: {
+      handle: (channel, handler) => handlers.set(channel, handler),
+      removeHandler: (channel) => removed.push(channel),
+    },
+    clipboard: { writeText: (text) => writes.push(text) },
+    authorize: () => { authorized = true; },
+  });
+
+  assert.deepEqual(handlers.get("laobos:clipboard:write-text")({}, { text: "省心复制" }), { written: true });
+  assert.equal(authorized, true);
+  assert.deepEqual(writes, ["省心复制"]);
+  assert.throws(() => handlers.get("laobos:clipboard:write-text")({}, { text: 42 }), /必须是字符串/u);
+  dispose();
+  assert.deepEqual(removed, ["laobos:clipboard:write-text"]);
+});
+
+test("desktop permission policy allows clipboard writes only from the DSH runtime", () => {
+  let checkHandler;
+  let requestHandler;
+  installPermissionPolicy({
+    session: {
+      setPermissionCheckHandler: (handler) => { checkHandler = handler; },
+      setPermissionRequestHandler: (handler) => { requestHandler = handler; },
+    },
+    getRuntimeUrl: () => "http://127.0.0.1:49163/",
+  });
+
+  const runtimeContents = { getURL: () => "http://127.0.0.1:49163/session/example" };
+  assert.equal(checkHandler(runtimeContents, "clipboard-sanitized-write", "http://127.0.0.1:49163"), true);
+  assert.equal(checkHandler(runtimeContents, "clipboard-read", "http://127.0.0.1:49163"), false);
+  assert.equal(checkHandler(runtimeContents, "clipboard-sanitized-write", "https://example.com"), false);
+  assert.equal(isTrustedRuntimePermission({
+    webContents: { getURL: () => "https://example.com" },
+    requestingOrigin: "http://127.0.0.1:49163",
+    runtimeUrl: "http://127.0.0.1:49163",
+  }), false);
+
+  const decisions = [];
+  requestHandler(runtimeContents, "clipboard-sanitized-write", (allowed) => decisions.push(allowed), {
+    requestingUrl: "http://127.0.0.1:49163/session/example",
+  });
+  requestHandler(runtimeContents, "notifications", (allowed) => decisions.push(allowed), {
+    requestingUrl: "http://127.0.0.1:49163/session/example",
+  });
+  assert.deepEqual(decisions, [true, false]);
+});
 
 test("desktop path authorization rejects traversal and symlink escapes", async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), "laobos-paths-"));
@@ -52,6 +112,63 @@ test("desktop path authorization rejects traversal and symlink escapes", async (
   }
 });
 
+test("workspace file manager edits, renames, reveals and removes authorized files", async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "laobos-file-manager-"));
+  const workspace = path.join(temporary, "workspace");
+  const dshHome = path.join(temporary, "dsh-home");
+  await mkdir(workspace); await mkdir(dshHome);
+  await writeFile(path.join(workspace, "notes.txt"), "first\n");
+  const handlers = new Map();
+  const revealed = [];
+  const dispose = registerWorkspaceFilesIpc({
+    ipcMain: {
+      handle: (channel, handler) => handlers.set(channel, handler),
+      removeHandler: (channel) => handlers.delete(channel),
+    },
+    dialog: {},
+    shell: {
+      openPath: async (target) => { revealed.push(target); return ""; },
+      showItemInFolder: (target) => revealed.push(target),
+    },
+    workspace,
+    dshHome,
+    settings: { get: async () => ({ uploadLocation: "default" }), update: async (value) => value },
+    authorize: () => {},
+  });
+  try {
+    const listing = await handlers.get("laobos:workspace:list")({}, { root: workspace, path: "." });
+    assert.equal(listing.entries.find((entry) => entry.name === "notes.txt")?.mediaType, "text/plain");
+    const first = await handlers.get("laobos:workspace:read")({}, { root: workspace, path: "notes.txt" });
+    assert.equal(first.content, "first\n");
+    assert.equal(Number.isFinite(first.modifiedAt), true);
+    const saved = await handlers.get("laobos:workspace:write")({}, {
+      root: workspace,
+      path: "notes.txt",
+      content: "second\n",
+      expectedModifiedAt: first.modifiedAt,
+    });
+    assert.equal(saved.saved, true);
+    assert.equal(await readFile(path.join(workspace, "notes.txt"), "utf8"), "second\n");
+    await assert.rejects(() => handlers.get("laobos:workspace:write")({}, {
+      root: workspace,
+      path: "notes.txt",
+      content: "stale",
+      expectedModifiedAt: 0,
+    }), /其他程序修改/u);
+
+    const renamed = await handlers.get("laobos:workspace:rename")({}, { root: workspace, path: "notes.txt", name: "renamed.txt" });
+    assert.equal(renamed.path, "renamed.txt");
+    await handlers.get("laobos:workspace:reveal")({}, { root: workspace, path: renamed.path });
+    assert.deepEqual(revealed, [await realpath(path.join(workspace, "renamed.txt"))]);
+    assert.equal((await handlers.get("laobos:workspace:remove")({}, { root: workspace, path: renamed.path })).removed, true);
+    await assert.rejects(readFile(path.join(workspace, "renamed.txt")), /ENOENT/u);
+    await assert.rejects(() => handlers.get("laobos:workspace:rename")({}, { root: workspace, path: ".", name: "bad" }), /根目录/u);
+  } finally {
+    dispose();
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
 test("desktop settings persist upload location atomically", async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), "laobos-settings-"));
   const file = path.join(temporary, "settings.json");
@@ -61,9 +178,47 @@ test("desktop settings persist upload location atomically", async () => {
     await store.update({ uploadLocation: "workspace" });
     const restored = new DesktopSettingsStore(file);
     assert.deepEqual(await restored.get(), {
-      version: 2,
+      version: 5,
       uploadLocation: "workspace",
+      autoCheckUpdates: true,
+      lastUpdateCheckAt: null,
+      pendingUpdate: null,
+      authorizedWorkspaces: [],
     });
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test("desktop workspace authorization persists a native approval for projects outside Documents", async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "laobos-workspace-approval-"));
+  const documents = path.join(temporary, "Documents");
+  const project = path.join(temporary, "D-drive", "projects", "demo");
+  const settingsFile = path.join(temporary, "settings.json");
+  await mkdir(documents, { recursive: true });
+  await mkdir(project, { recursive: true });
+  let prompts = 0;
+  const settings = new DesktopSettingsStore(settingsFile);
+  const authorizer = new WorkspaceAuthorization({
+    defaultRoot: documents,
+    settings,
+    dialog: { showMessageBox: async () => { prompts += 1; return { response: 0 }; } },
+  });
+  try {
+    assert.equal(await authorizer.resolve(project), await realpath(project));
+    assert.equal(prompts, 1);
+    assert.deepEqual((await settings.get()).authorizedWorkspaces, [await realpath(project)]);
+    assert.equal(await authorizer.resolve(path.join(project, ".")), await realpath(project));
+    assert.equal(prompts, 1, "a persisted workspace approval must not prompt again");
+
+    const rejected = path.join(temporary, "rejected");
+    await mkdir(rejected);
+    const denying = new WorkspaceAuthorization({
+      defaultRoot: documents,
+      settings: new DesktopSettingsStore(path.join(temporary, "denied-settings.json")),
+      dialog: { showMessageBox: async () => ({ response: 1 }) },
+    });
+    await assert.rejects(() => denying.resolve(rejected), /尚未授权/u);
   } finally {
     await rm(temporary, { recursive: true, force: true });
   }
@@ -83,7 +238,8 @@ test("ordinary uploads are copied to the configured managed location", async () 
     });
     assert.equal(path.dirname(workspaceFile.path), path.join(workspace, "update"));
     assert.equal(await readFile(workspaceFile.path, "utf8"), "managed upload");
-    assert.equal(workspaceFile.name, "报告 <最终>.txt");
+    assert.equal(workspaceFile.name, "报告 _最终_.txt");
+    assert.equal(path.basename(workspaceFile.path).includes("报告 _最终_.txt"), true);
     assert.equal(workspaceFile.location, "workspace");
     assert.equal(path.isAbsolute(workspaceFile.path), true);
 
@@ -96,6 +252,10 @@ test("ordinary uploads are copied to the configured managed location", async () 
     }));
     assert.equal(defaultFile.location, "default");
     assert.equal(safeUploadFileName("../bad\\name.txt"), "name.txt");
+    assert.equal(safeUploadFileName("附录1.1:需求说明书 1.1.docx"), "附录1.1_需求说明书 1.1.docx");
+    assert.equal(safeUploadFileName('报告<最终>|草稿?.txt'), "报告_最终__草稿_.txt");
+    assert.equal(safeUploadFileName("report. "), "report");
+    assert.equal(safeUploadFileName("CON.txt"), "_CON.txt");
 
     const link = path.join(temporary, "linked.txt");
     await symlink(source, link);
@@ -161,8 +321,8 @@ test("session trash discovery identifies DSH JSONL headers without trusting dire
   }
 });
 
-test("native helper contracts normalize PDF, Git, browser, SSH and tmux values", () => {
-  assert.equal(safePdfName('项目/A: "会话"'), "项目-A- -会话-.pdf");
+test("native helper contracts normalize HTML, Git, browser, SSH and tmux values", () => {
+  assert.equal(safeHtmlName('项目/A: "会话"'), "项目-A- -会话-.html");
   assert.deepEqual(parseGitStatus("## main...origin/main\0 M src/a.js\0?? notes.txt\0"), {
     branch: "main",
     changes: [
@@ -171,11 +331,36 @@ test("native helper contracts normalize PDF, Git, browser, SSH and tmux values",
     ],
   });
   assert.equal(normalizeBrowserUrl("localhost:3000"), "http://localhost:3000/");
+  assert.throws(() => normalizeBrowserUrl(""), /请输入/u);
   assert.throws(() => normalizeBrowserUrl("file:///tmp/a"), /HTTP\(S\)/u);
+  assert.match(friendlyNavigationError({ code: -102, message: "ERR_CONNECTION_REFUSED" }, "http://127.0.0.1:3000"), /先启动开发服务/u);
   assert.match(fingerprint(Buffer.from("host-key")), /^SHA256:/u);
   assert.equal(tmuxSessionName("/tmp/workspace"), tmuxSessionName("/tmp/workspace"));
   assert.notEqual(tmuxSessionName("/tmp/a"), tmuxSessionName("/tmp/b"));
   assert.notEqual(tmuxSessionName("/tmp/workspace", "terminal-1"), tmuxSessionName("/tmp/workspace", "terminal-2"));
+});
+
+test("workspace code and Git diff renderers preserve line numbers and token classes", () => {
+  assert.equal(languageForPath("src/client.tsx"), "typescript");
+  assert.equal(mediaTypeFor(".gitignore"), "text/plain");
+  assert.equal(mediaTypeFor("src/native.cpp"), "text/plain");
+  assert.ok(tokenizeCodeLine('const answer = "ok";', "typescript").some((token) => token.type === "keyword" && token.value === "const"));
+  const model = parseUnifiedDiff([
+    "diff --git a/src/a.js b/src/a.js",
+    "--- a/src/a.js",
+    "+++ b/src/a.js",
+    "@@ -1,2 +1,2 @@",
+    "-const color = 'black';",
+    "+const color = 'blue';",
+    " console.log(color);",
+  ].join("\n"));
+  assert.equal(model.additions, 1);
+  assert.equal(model.deletions, 1);
+  assert.deepEqual(model.lines.filter((line) => ["delete", "insert", "normal"].includes(line.type)).map((line) => [line.type, line.oldLine, line.newLine]), [
+    ["delete", 1, null],
+    ["insert", null, 1],
+    ["normal", 2, 2],
+  ]);
 });
 
 test("application detection and argument parsing never require a shell", async () => {
@@ -217,6 +402,32 @@ test("managed applications reserve only available ports at 40000 or above", asyn
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("port readiness detects both wildcard and loopback listeners on macOS", async () => {
+  const port = await findFreeApplicationPort([], MANAGED_APP_MIN_PORT);
+  assert.equal(await isTcpPortFree(port), true);
+  const wildcard = net.createServer();
+  await new Promise((resolve, reject) => {
+    wildcard.once("error", reject);
+    wildcard.listen({ host: "0.0.0.0", port }, resolve);
+  });
+  try {
+    assert.equal(await isTcpPortFree(port), false, "wildcard 0.0.0.0 listener must count as busy");
+  } finally {
+    await new Promise((resolve) => wildcard.close(resolve));
+  }
+  const loopback = net.createServer();
+  await new Promise((resolve, reject) => {
+    loopback.once("error", reject);
+    loopback.listen({ host: "127.0.0.1", port }, resolve);
+  });
+  try {
+    assert.equal(await isTcpPortFree(port), false, "loopback 127.0.0.1 listener must count as busy");
+  } finally {
+    await new Promise((resolve) => loopback.close(resolve));
+  }
+  assert.equal(await isTcpPortFree(port), true);
 });
 
 test("application manager validates registration and waits for the managed port", async () => {
@@ -395,26 +606,41 @@ test("DSH desktop plugins expose every planned capability through a sandboxed pr
   assert.match(main, /sandbox:\s*true/u);
   assert.match(main, /registerDesktopDomains/u);
   assert.doesNotMatch(preload, /exposeInMainWorld\([^,]+,\s*ipcRenderer/u);
-  for (const capability of ["conversationPdf", "sessionTrash", "workspaceFiles", "gitReview", "uploadSettings", "fileAttachments", "terminal", "browserPreview", "browserOps", "ssh", "apps"]) assert.match(preload, new RegExp(`${capability}: true`, "u"));
+  for (const capability of ["conversationHtml", "sessionTrash", "workspaceFiles", "gitReview", "uploadSettings", "fileAttachments", "terminal", "browserPreview", "browserOps", "ssh", "apps", "clipboard", "shellManager", "softwareUpdate"]) assert.match(preload, new RegExp(`${capability}: true`, "u"));
+  assert.doesNotMatch(preload, /cloudAuth|cloud-auth/u);
   for (const name of ["dsh-conversation-tools", "dsh-file-attachments", "dsh-workspace-tools", "dsh-terminal-ui", "dsh-browserops", "dsh-ssh", "dsh-app-manager"]) assert.match(config, new RegExp(name, "u"));
-  assert.match(conversation, /editAndResend/u); assert.match(conversation, /sessions\.fork/u); assert.match(conversation, /导出会话为 PDF/u); assert.match(conversation, /contextmenu/u);
+  assert.match(conversation, /editAndResend/u); assert.match(conversation, /sessions\.fork/u); assert.match(conversation, /导出完整会话为 HTML/u); assert.match(conversation, /contextmenu/u); assert.match(conversation, /closest\("\.lbs-workbench"\)/u);
+  assert.match(conversation, /在系统文件管理器中打开/u); assert.match(conversation, /workspace\?\.reveal/u); assert.match(conversation, /清空可恢复目录名称/u); assert.match(conversation, /清空可恢复默认名称/u);
   assert.match(workspace, /文件管理器/u); assert.match(workspace, /版本中心/u); assert.doesNotMatch(workspace, /文件上传路径/u); assert.doesNotMatch(workspace, /lbs-desktop-launcher/u);
-  assert.match(systemTools, /id: "laobos-upload-cache"/u); assert.match(systemTools, /DSH Home 私有目录/u); assert.match(systemTools, /当前工作区的 update 文件夹/u);
+  assert.match(workspace, /body\[data-ds-dark-theme\] \.lbs-workbench/u); assert.match(workspace, /--dsw-alias-markdown-code-block/u); assert.doesNotMatch(workspace, /\.lbs-code-viewer\{background:#0d1117/u);
+  assert.match(workspace, /file-open-fallback/u); assert.match(workspace, /lbs-file-menu/u); assert.match(workspace, /lbs-preview-editor/u); assert.match(workspace, /workspace\.write/u);
+  assert.match(systemTools, /id: "laobos-upload-cache"/u); assert.match(systemTools, /DSH Home 私有目录/u); assert.match(systemTools, /当前工作区的 update 文件夹/u); assert.match(systemTools, /id === "trajectory"/u); assert.match(systemTools, /M4\.75 3h1\.5/u);
   assert.doesNotMatch(fileAttachments, /slash\/input-insert-reference/u); assert.match(fileAttachments, /<laobos-file>/u); assert.match(fileAttachments, /priority: -10/u);
   assert.match(fileAttachmentsSource, /lbs-file-card/u); assert.match(fileAttachmentsSource, /pickFiles\(sessionId\)/u); assert.match(fileAttachmentsSource, /serializeFileEnvelope/u);
   assert.match(fileAttachmentsSource, /conversation\.input\.dock/u); assert.match(fileAttachmentsSource, /lbs-file-composer-zone/u); assert.match(fileAttachmentsSource, /function FileSvgIcon/u);
   assert.match(fileAttachmentsSource, /createDraftImages/u); assert.match(fileAttachmentsSource, /添加图片或文件/u);
   assert.match(fileAttachmentsSource, /@keyframes lbs-file-attach-spin/u); assert.match(fileAttachmentsSource, /data-busy=\{busy/u); assert.match(fileAttachmentsSource, /background:transparent;border:0/u);
   assert.match(fileAttachmentsSource, /pendingFilesBySession/u); assert.match(fileAttachmentsSource, /independent file send channel/u); assert.doesNotMatch(fileAttachmentsSource, /insertFileReference/u);
+  assert.match(fileAttachmentsSource, /selectedModelSupportsImages/u);
+  assert.match(fileAttachmentsSource, /persistImagesAsFiles/u);
+  assert.match(fileAttachmentsSource, /selectedModelSupportsImages\(ctx, session\.sessionId\) !== true/u);
+  assert.match(fileAttachmentsSource, /downgradeImages \? \[\] : imageIds/u);
+  assert.match(fileAttachmentsSource, /"modelDirectories"/u);
   assert.match(fileAttachmentsSource, /addEventListener\("paste"/u);
+  assert.match(fileAttachmentsSource, /addEventListener\("drop", drop, true\)/u);
   assert.match(fileAttachmentsSource, /clipboardData\?\.items/u);
+  assert.match(fileAttachmentsSource, /dataTransfer\?\.files/u);
+  assert.match(fileAttachmentsSource, /stopImmediatePropagation/u);
   assert.match(fileAttachmentsSource, /pasteFiles\(sessionId/u);
+  assert.match(fileAttachmentsSource, /laobosDesktop\?\.clipboard\?\.writeText/u);
+  assert.match(fileAttachmentsSource, /复制失败，请重试/u);
   assert.match(preload, /laobos:uploads:paste-files/u);
+  for (const channel of ["laobos:workspace:write", "laobos:workspace:rename", "laobos:workspace:remove"]) assert.match(preload, new RegExp(channel, "u"));
   assert.match(buildScript, /jsxFactory: "React\.createElement"/u);
-  assert.match(terminal, /laobosDesktop\.terminal\.create/u); assert.match(terminal, /tmuxKey/u); assert.match(terminal, /workspace\.context/u); assert.match(terminal, /\.lbs-terminal-toolbar \.lbs-terminal-tabs\{display:flex!important/u); assert.match(terminal, /desktop-tool-opened/u); assert.doesNotMatch(terminal, /existingTmux/u);
+  assert.match(terminal, /laobosDesktop\.terminal\.create/u); assert.match(terminal, /tmuxKey/u); assert.match(terminal, /workspace\.context/u); assert.match(terminal, /\.lbs-terminal-toolbar \.lbs-terminal-tabs\{display:flex!important/u); assert.match(terminal, /desktop-tool-opened/u); assert.doesNotMatch(terminal, /existingTmux/u); assert.match(terminal, /function terminalTheme/u); assert.match(terminal, /data-ds-dark-theme/u); assert.doesNotMatch(terminal, /\.lbs-terminal-panel\{background:#101419/u);
   assert.match(browser, /WebContentsView|browser\.setBounds/u); assert.match(browser, /BrowserOps/u);
-  assert.match(ssh, /HOST_KEY_UNKNOWN/u); assert.match(sshSource, /SSH 凭据管理/u); assert.match(ssh, /desktop-tool-opened/u);
-  assert.match(appsSource, /登记应用/u); assert.match(appsSource, /移出管理/u); assert.match(appsSource, /40000/u); assert.match(appsSource, /自动分配/u); assert.match(apps, /desktop-tool-opened/u);
+  assert.match(ssh, /HOST_KEY_UNKNOWN/u); assert.match(sshSource, /SSH 凭据管理/u); assert.match(ssh, /desktop-tool-opened/u); assert.match(sshSource, /function syncTerminalTheme/u); assert.match(sshSource, /--dsw-alias-bg-base/u);
+  assert.match(appsSource, /登记应用/u); assert.match(appsSource, /移出管理/u); assert.match(appsSource, /40000/u); assert.match(appsSource, /自动分配/u); assert.match(apps, /desktop-tool-opened/u); assert.match(appsSource, /--dsw-alias-markdown-code-block/u);
   assert.match(appsSource, /lbs-apps-list-head/u); assert.match(appsSource, /function Icon/u); assert.doesNotMatch(appsSource, /lbs-apps-sidebar/u);
   for (const action of ["打开应用", "API 文档", "查看应用", "编辑应用", "移出应用"]) assert.match(appsSource, new RegExp(`aria-label=\\{?[^\\n]*${action}`, "u"));
   for (const method of ["findPort", "apiDoc", "saveApiDoc", "deleteCredential", "forgetHostKey", "inspect", "stage", "unstage", "commit", "branch", "restore", "sync"]) assert.match(preload, new RegExp(`${method}:`, "u"));

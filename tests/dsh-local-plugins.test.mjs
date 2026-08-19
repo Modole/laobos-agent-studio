@@ -4,9 +4,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  bundledPluginNames,
   bundledPluginMode,
   ensureBundledPlugins,
 } from "../desktop/local-plugins.mjs";
+
+test("the public client bundles local features without private account plugins", () => {
+  assert.equal(bundledPluginNames.includes("laobos-updater"), true);
+  assert.equal(bundledPluginNames.includes("laobos-cloud-auth"), false);
+  assert.equal(bundledPluginNames.includes("laobos-context-window"), false);
+});
 
 test("Windows and packaged clients deploy bundled plugins without privileged symlinks", () => {
   assert.equal(bundledPluginMode({ platform: "win32" }), "copy");
@@ -24,11 +31,13 @@ test("copied bundled plugins update by content fingerprint and reject unmanaged 
 
   try {
     await mkdir(path.join(source, "lib"), { recursive: true });
+    await mkdir(path.join(source, "assets"), { recursive: true });
     await writeFile(path.join(source, "package.json"), JSON.stringify({
       name: "@laobos/dsh-fixture",
       version: "1.0.0",
     }));
     await writeFile(path.join(source, "lib", "index.js"), "export default 1;\n");
+    await writeFile(path.join(source, "assets", "logo.png"), "fixture-logo");
 
     ensureBundledPlugins({
       studioRoot,
@@ -38,6 +47,7 @@ test("copied bundled plugins update by content fingerprint and reject unmanaged 
     });
     assert.equal((await lstat(installed)).isSymbolicLink(), false);
     assert.equal(await readFile(path.join(installed, "lib", "index.js"), "utf8"), "export default 1;\n");
+    assert.equal(await readFile(path.join(installed, "assets", "logo.png"), "utf8"), "fixture-logo");
 
     await writeFile(path.join(source, "lib", "index.js"), "export default 2;\n");
     ensureBundledPlugins({

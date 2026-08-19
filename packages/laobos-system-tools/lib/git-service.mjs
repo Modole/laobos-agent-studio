@@ -1,12 +1,13 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { realpath } from "node:fs/promises";
+import { access, realpath } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const MAX_BUFFER = 8 * 1024 * 1024;
 const MAX_PATHS = 200;
+let defaultGitExecutable;
 
 export class GitServiceError extends Error {
   constructor(code, message) {
@@ -14,6 +15,56 @@ export class GitServiceError extends Error {
     this.name = "GitServiceError";
     this.code = code;
   }
+}
+
+export function gitExecutableCandidates({
+  platform = process.platform,
+  env = process.env,
+  resourcesPath = process.resourcesPath,
+} = {}) {
+  const configured = env.LAOBOS_GIT_EXECUTABLE?.trim();
+  if (platform !== "win32") return [...new Set([configured, "git"].filter(Boolean))];
+  const pathApi = path.win32;
+
+  const programFiles = env.ProgramFiles || env.PROGRAMFILES;
+  const programFilesX86 = env["ProgramFiles(x86)"] || env.PROGRAMFILES_X86;
+  const localAppData = env.LOCALAPPDATA
+    || (env.USERPROFILE && pathApi.join(env.USERPROFILE, "AppData", "Local"));
+  const installRoots = [
+    env.GIT_INSTALL_ROOT,
+    env.ProgramW6432 && pathApi.join(env.ProgramW6432, "Git"),
+    programFiles && pathApi.join(programFiles, "Git"),
+    programFilesX86 && pathApi.join(programFilesX86, "Git"),
+    localAppData && pathApi.join(localAppData, "Programs", "Git"),
+    env.USERPROFILE && pathApi.join(env.USERPROFILE, "scoop", "apps", "git", "current"),
+    resourcesPath && pathApi.join(resourcesPath, "git"),
+  ].filter(Boolean);
+  const absoluteCandidates = installRoots.flatMap((root) => [
+    pathApi.join(root, "cmd", "git.exe"),
+    pathApi.join(root, "bin", "git.exe"),
+  ]);
+  if (env.ChocolateyInstall) absoluteCandidates.push(pathApi.join(env.ChocolateyInstall, "bin", "git.exe"));
+  return [...new Set([configured, ...absoluteCandidates, "git"].filter(Boolean))];
+}
+
+export async function resolveGitExecutable({
+  platform = process.platform,
+  env = process.env,
+  resourcesPath = process.resourcesPath,
+  canAccess = access,
+} = {}) {
+  const candidates = gitExecutableCandidates({ platform, env, resourcesPath });
+  const pathApi = platform === "win32" ? path.win32 : path;
+  for (const candidate of candidates) {
+    if (!pathApi.isAbsolute(candidate)) return candidate;
+    try {
+      await canAccess(candidate);
+      return candidate;
+    } catch {
+      // Try the next known Git for Windows installation location.
+    }
+  }
+  return "git";
 }
 
 export async function inspectGit(root) {
@@ -351,7 +402,9 @@ function isPathInside(root, candidate) {
 async function runGit(cwd, args, options = {}) {
   const acceptedExitCodes = options.acceptedExitCodes || [0];
   try {
-    const { stdout, stderr } = await execFileAsync("git", args, {
+    defaultGitExecutable ||= resolveGitExecutable();
+    const gitExecutable = await defaultGitExecutable;
+    const { stdout, stderr } = await execFileAsync(gitExecutable, args, {
       cwd,
       encoding: "utf8",
       timeout: options.timeout || 20_000,
@@ -361,6 +414,12 @@ async function runGit(cwd, args, options = {}) {
     });
     return { stdout, stderr, code: 0 };
   } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw new GitServiceError(
+        "GIT_NOT_FOUND",
+        "未检测到 Git。请安装 Git for Windows，或将 git.exe 加入 PATH；安装后请完全退出并重新打开劳博士。",
+      );
+    }
     const code = Number(error?.code);
     if (acceptedExitCodes.includes(code)) return { stdout: String(error?.stdout || ""), stderr: String(error?.stderr || ""), code };
     const message = String(error?.stderr || error?.message || error).trim();

@@ -50,6 +50,36 @@ function toolName(value) {
   return value;
 }
 
+export function normalizeImageUrls(value) {
+  const candidates = (Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/\r?\n/u)
+      : [])
+    .map((candidate) => String(candidate || "").trim())
+    .filter(Boolean);
+  if (candidates.length > 12) fail("IMAGE_URLS_TOO_MANY", "每份知识资料最多添加 12 张图片。");
+  const result = [];
+  for (const candidate of candidates) {
+    const text = candidate;
+    if (text.length > 4_096) fail("IMAGE_URL_INVALID", "图片 URL 过长。");
+    let url;
+    try { url = new URL(text); }
+    catch { fail("IMAGE_URL_INVALID", `图片 URL 无效：${text.slice(0, 120)}`); }
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
+      fail("IMAGE_URL_INVALID", "图片仅支持不含凭据的 HTTP(S) URL。");
+    }
+    const normalized = url.toString();
+    if (!result.includes(normalized)) result.push(normalized);
+  }
+  return result;
+}
+
+function parseImageUrls(value) {
+  try { return normalizeImageUrls(JSON.parse(value || "[]")); }
+  catch { return []; }
+}
+
 function normalizeSearchText(value) {
   return String(value || "")
     .normalize("NFKC")
@@ -152,7 +182,7 @@ export class SystemToolsStore {
       CREATE TABLE IF NOT EXISTS knowledge_documents (
         id TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 1,
         collection_id TEXT NOT NULL REFERENCES knowledge_collections(id) ON DELETE CASCADE,
-        title TEXT NOT NULL, source TEXT, content TEXT NOT NULL,
+        title TEXT NOT NULL, source TEXT, image_urls_json TEXT NOT NULL DEFAULT '[]', content TEXT NOT NULL,
         created_at TEXT NOT NULL, updated_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS knowledge_chunks (
@@ -194,6 +224,12 @@ export class SystemToolsStore {
     }
     if (!collectionColumns.has("workspace_path")) {
       this.database.exec("ALTER TABLE knowledge_collections ADD COLUMN workspace_path TEXT");
+    }
+    const documentColumns = new Set(
+      this.database.prepare("PRAGMA table_info(knowledge_documents)").all().map((row) => row.name),
+    );
+    if (!documentColumns.has("image_urls_json")) {
+      this.database.exec("ALTER TABLE knowledge_documents ADD COLUMN image_urls_json TEXT NOT NULL DEFAULT '[]'");
     }
     const workflowColumns = new Set(
       this.database.prepare("PRAGMA table_info(workflows)").all().map((row) => row.name),
@@ -369,13 +405,13 @@ export class SystemToolsStore {
   listDocuments(collectionId) {
     const where = collectionId ? "WHERE d.collection_id=?" : "";
     return this.database.prepare(`
-      SELECT d.id,d.revision,d.collection_id,d.title,d.source,length(d.content) content_length,
+      SELECT d.id,d.revision,d.collection_id,d.title,d.source,d.image_urls_json,length(d.content) content_length,
       COUNT(k.id) chunk_count,d.created_at,d.updated_at FROM knowledge_documents d
       LEFT JOIN knowledge_chunks k ON k.document_id=d.id ${where}
       GROUP BY d.id ORDER BY d.updated_at DESC,d.title COLLATE NOCASE
     `).all(...(collectionId ? [collectionId] : [])).map((row) => ({
       id: row.id, revision: revision(row), collectionId: row.collection_id, title: row.title,
-      ...(row.source ? { source: row.source } : {}), contentLength: row.content_length,
+      ...(row.source ? { source: row.source } : {}), imageUrls: parseImageUrls(row.image_urls_json), contentLength: row.content_length,
       chunkCount: row.chunk_count, createdAt: row.created_at, updatedAt: row.updated_at,
     }));
   }
@@ -383,13 +419,13 @@ export class SystemToolsStore {
   getDocument(id) {
     identifier(id, "文档 ID");
     const row = this.database.prepare(`
-      SELECT d.id,d.revision,d.collection_id,d.title,d.source,d.content,length(d.content) content_length,
+      SELECT d.id,d.revision,d.collection_id,d.title,d.source,d.image_urls_json,d.content,length(d.content) content_length,
       COUNT(k.id) chunk_count,d.created_at,d.updated_at FROM knowledge_documents d
       LEFT JOIN knowledge_chunks k ON k.document_id=d.id WHERE d.id=? GROUP BY d.id
     `).get(id);
     if (!row) fail("DOCUMENT_NOT_FOUND", "文档不存在。", 404);
     return { id: row.id, revision: revision(row), collectionId: row.collection_id, title: row.title,
-      ...(row.source ? { source: row.source } : {}), content: row.content,
+      ...(row.source ? { source: row.source } : {}), imageUrls: parseImageUrls(row.image_urls_json), content: row.content,
       contentLength: row.content_length, chunkCount: row.chunk_count,
       createdAt: row.created_at, updatedAt: row.updated_at };
   }
@@ -403,6 +439,7 @@ export class SystemToolsStore {
     const title = nonEmpty(input.title, "文档标题", 240);
     const content = nonEmpty(input.content, "文档内容", MAX_DOCUMENT_CHARACTERS);
     const source = String(input.source || "").trim().slice(0, 2000) || null;
+    const imageUrls = normalizeImageUrls(input.imageUrls ?? existing?.imageUrls ?? []);
     const chunks = splitDocument(content);
     const timestamp = now();
     this.transaction(() => {
@@ -411,11 +448,11 @@ export class SystemToolsStore {
       }
       this.database.prepare("DELETE FROM knowledge_chunks WHERE document_id=?").run(id);
       this.database.prepare(`
-        INSERT INTO knowledge_documents(id,collection_id,title,source,content,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET collection_id=excluded.collection_id,
-        title=excluded.title,source=excluded.source,content=excluded.content,
+        INSERT INTO knowledge_documents(id,collection_id,title,source,image_urls_json,content,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET collection_id=excluded.collection_id,
+        title=excluded.title,source=excluded.source,image_urls_json=excluded.image_urls_json,content=excluded.content,
         updated_at=excluded.updated_at,revision=revision+1
-      `).run(id, collectionId, title, source, content, timestamp, timestamp);
+      `).run(id, collectionId, title, source, JSON.stringify(imageUrls), content, timestamp, timestamp);
       for (const [ordinal, chunk] of chunks.entries()) {
         const chunkId = `chunk-${randomUUID()}`;
         this.database.prepare("INSERT INTO knowledge_chunks VALUES(?,?,?,?,?,?)").run(chunkId, id, collectionId, ordinal, chunk, timestamp);
@@ -446,7 +483,7 @@ export class SystemToolsStore {
     let rows = [];
     try {
       rows = !match ? [] : this.database.prepare(`
-        SELECT k.id chunk_id,k.ordinal,k.document_id,k.collection_id,d.title,d.source,k.content,
+        SELECT k.id chunk_id,k.ordinal,k.document_id,k.collection_id,d.title,d.source,d.image_urls_json,k.content,
         bm25(knowledge_chunks_fts,0.0,0.0,5.0,1.0) rank
         FROM knowledge_chunks_fts JOIN knowledge_chunks k ON k.id=knowledge_chunks_fts.chunk_id
         JOIN knowledge_documents d ON d.id=k.document_id
@@ -462,7 +499,7 @@ export class SystemToolsStore {
       const conditions = fallbackTerms.map(() => "(k.content LIKE ? OR d.title LIKE ?)").join(" OR ");
       const values = fallbackTerms.flatMap((term) => [`%${term}%`, `%${term}%`]);
       rows = this.database.prepare(`
-        SELECT k.id chunk_id,k.ordinal,k.document_id,k.collection_id,d.title,d.source,k.content,1.0 rank
+        SELECT k.id chunk_id,k.ordinal,k.document_id,k.collection_id,d.title,d.source,d.image_urls_json,k.content,1.0 rank
         FROM knowledge_chunks k JOIN knowledge_documents d ON d.id=k.document_id
         JOIN knowledge_collections c ON c.id=k.collection_id
         WHERE (${conditions}) AND (? IS NULL OR k.collection_id=?) AND (?=0 OR c.agent_enabled=1)
@@ -498,6 +535,7 @@ export class SystemToolsStore {
         chunkId: row.chunk_id, ordinal: row.ordinal, documentId: row.document_id,
         collectionId: row.collection_id, title: row.title,
         ...(row.source ? { source: row.source } : {}),
+        imageUrls: parseImageUrls(row.image_urls_json),
         content: mergeOverlappingText(context.map((item) => item.content)),
         score: Number(row.score.toFixed(6)),
       };
