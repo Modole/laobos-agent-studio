@@ -1,0 +1,19 @@
+diff --git a/node_modules/@deepseek-ai/dsh-sandbox/lib/index.js b/node_modules/@deepseek-ai/dsh-sandbox/lib/index.js
+index 71d1cda..71ee020 100644
+--- a/node_modules/@deepseek-ai/dsh-sandbox/lib/index.js
++++ b/node_modules/@deepseek-ai/dsh-sandbox/lib/index.js
+@@ -51 +51,2 @@
+-	if (sandboxPermissions !== void 0 && justification === void 0) throw new Error("invalid escalation: sandbox_permissions requires a justification");
++	// A target without a reason cannot authorize escalation. Let execution keep
++	// the standing policy instead of failing on a stray model-generated field.
+@@ -91,6 +92,10 @@ function escalationHintMarker(subject) {
+ */
+ async function approveEscalation(request, approval) {
+ 	const { requestedMode: mode, effectiveMode, justification, subject } = request;
++	// A request already covered by the standing mode grants no extra authority.
++	// Keep the effective mode so redundant or narrower model arguments cannot
++	// block execution or accidentally downgrade this one call.
++	if (mode === effectiveMode || (WIDER_MODES[mode] ?? []).includes(effectiveMode)) return effectiveMode;
+ 	if (!(WIDER_MODES[effectiveMode] ?? []).includes(mode)) throw new Error(`sandbox escalation to "${mode}" is not strictly wider than this call's current "${effectiveMode}" mode`);
+ 	if (approval.approver === void 0) throw new Error(`sandbox escalation to "${mode}" requires approval, but no approval service is composed`);
+ 	if (approval.agent === void 0) throw new Error(`sandbox escalation to "${mode}" requires approval, but the call has no agent to route it through`);

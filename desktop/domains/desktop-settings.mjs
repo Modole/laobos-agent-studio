@@ -2,9 +2,32 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const DEFAULTS = Object.freeze({
-  version: 2,
+  version: 5,
   uploadLocation: "default",
+  autoCheckUpdates: true,
+  lastUpdateCheckAt: null,
+  pendingUpdate: null,
+  authorizedWorkspaces: [],
 });
+
+function normalizePendingUpdate(value) {
+  if (!value || typeof value !== "object") return null;
+  const version = typeof value.version === "string" ? value.version.slice(0, 64) : "";
+  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u.test(version)) return null;
+  return {
+    version,
+    releaseName: typeof value.releaseName === "string" ? value.releaseName.slice(0, 256) : "",
+    releaseNotes: typeof value.releaseNotes === "string" ? value.releaseNotes.slice(0, 20_000) : "",
+    releaseDate:
+      typeof value.releaseDate === "string" && Number.isFinite(Date.parse(value.releaseDate))
+        ? value.releaseDate
+        : "",
+    downloadedAt:
+      typeof value.downloadedAt === "string" && Number.isFinite(Date.parse(value.downloadedAt))
+        ? value.downloadedAt
+        : null,
+  };
+}
 
 export class DesktopSettingsStore {
   constructor(filePath) {
@@ -51,11 +74,37 @@ export class DesktopSettingsStore {
 }
 
 export function normalizeSettings(value) {
+  const compatible = [2, 3, 4, 5].includes(value?.version);
+  const lastUpdateCheckAt =
+    [3, 4, 5].includes(value?.version) &&
+    typeof value.lastUpdateCheckAt === "string" &&
+    Number.isFinite(Date.parse(value.lastUpdateCheckAt))
+      ? value.lastUpdateCheckAt
+      : null;
   return {
-    version: 2,
+    version: 5,
     uploadLocation:
-      value?.version === 2 && value?.uploadLocation === "workspace"
+      compatible && value?.uploadLocation === "workspace"
         ? "workspace"
         : "default",
+    autoCheckUpdates:
+      [3, 4, 5].includes(value?.version) ? value.autoCheckUpdates !== false : true,
+    lastUpdateCheckAt,
+    pendingUpdate: [4, 5].includes(value?.version) ? normalizePendingUpdate(value.pendingUpdate) : null,
+    authorizedWorkspaces: value?.version === 5
+      ? normalizeAuthorizedWorkspaces(value.authorizedWorkspaces)
+      : [],
   };
+}
+
+function normalizeAuthorizedWorkspaces(value) {
+  if (!Array.isArray(value)) return [];
+  const roots = [];
+  for (const entry of value) {
+    if (typeof entry !== "string" || !path.isAbsolute(entry) || entry.length > 4096) continue;
+    const normalized = path.normalize(entry);
+    const key = process.platform === "win32" ? normalized.toLowerCase() : normalized;
+    if (!roots.some((root) => root.key === key)) roots.push({ key, value: normalized });
+  }
+  return roots.slice(-64).map((root) => root.value);
 }

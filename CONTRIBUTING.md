@@ -19,6 +19,16 @@ npm run audit:public
 
 Pull Request 应说明改动目的、用户影响、验证方式，以及是否涉及数据迁移、权限、网络访问或依赖许可。
 
+## 桌面与发布改动
+
+涉及 Electron、DSH 内置插件、安装器、平台原生依赖或更新器时，请先阅读[桌面打包与应用内更新手册](docs/desktop-release-playbook.md)，并满足以下要求：
+
+- 插件运行时资源必须放在插件自身目录，不能跨目录引用根 `public/` 或开发机路径。
+- Windows 原生依赖必须在 `app.asar.unpacked` 中验证真实的 x64 PE 文件，不能只检查 package.json。
+- macOS 更新必须验证基线版与新版的完整签名和 designated requirement。
+- 修改功能、架构或发布流程时同步更新 `README.md`、`docs/` 中对应文档及必要的回归测试。
+- Release 先使用草稿聚合资产，安装器和 blockmap 上传成功后再发布 `latest*.yml`。
+
 ## 贡献许可
 
 提交代码、文档或资源即表示：

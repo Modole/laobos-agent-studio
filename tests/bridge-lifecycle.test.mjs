@@ -114,6 +114,39 @@ test("embedded bridge starts on a dynamic port, authenticates, and stops", async
       /^attachment;/,
     );
 
+    const fallbackImageId = "b9dddc91-35d9-4637-b7b2-e9566843f0cf";
+    const fallbackImageBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const fallbackImageUploadResponse = await fetch(
+      `${bridge.url}/api/chat/ff206091-c677-42f9-9c52-626f8db8c8dd/attachments`,
+      {
+        method: "POST",
+        headers: authorizedHeaders,
+        body: JSON.stringify({
+          imageMode: "file",
+          attachments: [
+            {
+              id: fallbackImageId,
+              name: "reference.png",
+              mimeType: "image/png",
+              size: fallbackImageBytes.length,
+              data: fallbackImageBytes.toString("base64"),
+            },
+          ],
+        }),
+      },
+    );
+    assert.equal(fallbackImageUploadResponse.status, 201);
+    const fallbackImageUpload = await fallbackImageUploadResponse.json();
+    assert.equal(fallbackImageUpload.attachments[0].kind, "file");
+    const fallbackImageDownloadResponse = await fetch(
+      `${bridge.url}${fallbackImageUpload.attachments[0].downloadPath}`,
+      { headers: authorizedHeaders },
+    );
+    assert.match(
+      fallbackImageDownloadResponse.headers.get("content-disposition") || "",
+      /^attachment;/,
+    );
+
     const invalidAttachmentResponse = await fetch(
       `${bridge.url}/api/chat/ff206091-c677-42f9-9c52-626f8db8c8dd/attachments`,
       {

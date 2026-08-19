@@ -17,6 +17,7 @@ window.__ModuleLoader__.load({
       .lbs-conv-menu{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;box-shadow:var(--dsw-shadow-lv2);display:flex;flex-direction:column;gap:2px;min-width:168px;padding:5px;position:absolute;right:0;top:30px;z-index:2147483100}
       .lbs-conv-menu.fixed{bottom:auto;box-sizing:border-box;max-height:calc(100vh - 16px);max-width:calc(100vw - 16px);overflow-y:auto;position:fixed;right:auto}.lbs-conv-menu button{appearance:none;background:transparent;border:0;border-radius:6px;color:inherit;cursor:pointer;font:inherit;font-size:13px;line-height:30px;padding:0 9px;text-align:left;white-space:nowrap}.lbs-conv-menu button:hover,.lbs-conv-menu button:focus-visible{background:var(--dsw-alias-interactive-bg-hover);outline:none}.lbs-conv-menu button.danger{color:#d94b4b}.lbs-conv-menu button:disabled{cursor:not-allowed;opacity:.45}
       .lbs-conv-inline-action{align-items:center;appearance:none;background:transparent;border:0;border-radius:28px;color:var(--dsw-alias-label-tertiary);cursor:pointer;display:inline-flex;height:28px;justify-content:center;padding:6px;width:28px}.lbs-conv-inline-action:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}.lbs-conv-inline-action:disabled{background:transparent;color:var(--dsw-alias-label-tertiary);cursor:not-allowed;opacity:.4}.lbs-conv-inline-action svg{display:block}
+      [data-chat-flow-kind="context"]{display:none!important}
       [data-time-hover-root]:not([data-turn-tail]){align-items:flex-end!important;flex-direction:column!important;gap:6px!important}
       .lbs-conv-overlay{align-items:center;background:rgba(0,0,0,.28);display:flex;inset:0;justify-content:center;padding:24px;position:fixed;z-index:2147483200}.lbs-conv-dialog{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:14px;box-shadow:var(--dsw-shadow-lv3);box-sizing:border-box;max-width:620px;padding:18px;width:100%}.lbs-conv-dialog h2{font-size:17px;margin:0 0 5px}.lbs-conv-dialog p{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;margin:0 0 12px}.lbs-conv-dialog textarea{background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:9px;box-sizing:border-box;color:inherit;font:inherit;line-height:21px;min-height:150px;padding:10px;resize:vertical;width:100%}.lbs-conv-dialog footer{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}.lbs-conv-primary,.lbs-conv-secondary{appearance:none;border:0;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;height:34px;padding:0 13px}.lbs-conv-primary{background:var(--dsw-alias-interactive-bg-primary);color:var(--dsw-alias-label-on-primary)}.lbs-conv-secondary{background:var(--dsw-alias-interactive-bg-secondary);color:inherit}.lbs-conv-primary:disabled{cursor:not-allowed;opacity:.5}.lbs-conv-feedback{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       [data-phase]>[data-slot="conversation.session.header"]>header{padding:6px 28px 6px 20px!important}
@@ -48,10 +49,6 @@ window.__ModuleLoader__.load({
       return { text, files, envelopes };
     };
     const appendFileEnvelopes = (text, envelopes) => [String(text || "").trim(), ...envelopes].filter(Boolean).join("\n");
-    const escapeHtml = (value) => String(value ?? "")
-      .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-
     function orderedNodes(snapshot) {
       return snapshot?.chat?.order
         ?.map((key) => snapshot.chat.nodes.get(key))
@@ -123,52 +120,388 @@ window.__ModuleLoader__.load({
       await scopedConversation(ctx, sessionId).send(text);
     }
 
-    function assistantText(node) {
-      const blocks = node?.data?.blocks;
-      if (!Array.isArray(blocks)) return "";
-      return blocks.filter((block) => block?.kind === "text").map((block) => block.text || "").join("\n").trim();
+    const EXPORT_ROOT_ID = "lbs-conversation-export-root";
+    const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
+    async function settleFrames(count = 3) {
+      for (let index = 0; index < count; index += 1) await nextFrame();
     }
 
-    function conversationHtml(sessionId, title, snapshot) {
-      const rows = [];
-      for (const node of orderedNodes(snapshot)) {
-        const kind = node?.data?.kind;
-        if (kind === "user" || kind === "steering") {
-          const projected = contentProjection(node.data.content);
-          const fileRows = projected.files.map((file) => `<div class="file"><strong>${escapeHtml(file.name)}</strong><small>${escapeHtml(file.path)}</small></div>`).join("");
-          rows.push(`<section class="message user"><header>用户</header>${projected.text ? `<div>${escapeHtml(projected.text).replaceAll("\n", "<br>")}</div>` : ""}${fileRows}</section>`);
-        } else if (kind === "assistant") {
-          const text = assistantText(node);
-          if (text) rows.push(`<section class="message assistant"><header>劳博士</header><div>${escapeHtml(text).replaceAll("\n", "<br>")}</div></section>`);
-        } else if (kind === "turn-error" || kind === "retry" || kind === "turn-max-tokens") {
-          rows.push(`<details class="activity"><summary>运行记录：${escapeHtml(kind)}</summary><pre>${escapeHtml(cleanText(node?.data?.message || node?.data?.error || ""))}</pre></details>`);
-        } else if (kind === "tool-result") {
-          rows.push(`<details class="activity"><summary>工具：${escapeHtml(node?.data?.name || "调用结果")}</summary><pre>${escapeHtml(cleanText(node?.data?.output || node?.data?.result || ""))}</pre></details>`);
+    function visibleConversationScroll() {
+      const candidates = [...document.querySelectorAll("[data-conversation-scroll]")]
+        .filter((element) => !element.closest(`#${EXPORT_ROOT_ID}`));
+      return candidates.find((element) => {
+        const box = element.getBoundingClientRect();
+        return box.width > 0 && box.height > 0;
+      }) || candidates[0] || null;
+    }
+
+    async function waitForCurrentSession(ctx, sessionId) {
+      const deadline = performance.now() + 10_000;
+      while (performance.now() < deadline) {
+        if (ctx.sessions.list.getSnapshot().current === sessionId) return;
+        await nextFrame();
+      }
+      throw new Error("等待会话界面切换超时。 ");
+    }
+
+    async function loadCompleteSnapshot(session) {
+      let snapshot = session.getSnapshot();
+      let previousMarker = "";
+      while (snapshot.hasMore) {
+        const marker = `${snapshot.chat.order[0] || ""}:${snapshot.chat.order.length}`;
+        if (marker === previousMarker) throw new Error("历史会话分页没有继续前进，无法保证完整导出。 ");
+        previousMarker = marker;
+        await session.loadOlder();
+        snapshot = session.getSnapshot();
+      }
+      return snapshot;
+    }
+
+    async function waitForRenderedConversation(snapshot) {
+      await settleFrames();
+      const scroll = visibleConversationScroll();
+      if (!scroll) throw new Error("找不到当前会话的渲染区域。 ");
+
+      // The Chat view has one keyed seat for every ordered DSH node. Other active
+      // views (for example Trajectory) do not expose these seats and are cloned as-is.
+      const expected = snapshot.chat.order;
+      if (scroll.querySelector("[data-chat-flow-key]") && expected.length > 0) {
+        const deadline = performance.now() + 10_000;
+        while (performance.now() < deadline) {
+          const rendered = new Set([...scroll.querySelectorAll("[data-chat-flow-key]")]
+            .map((element) => element.dataset.chatFlowKey));
+          if (expected.every((key) => rendered.has(key))) break;
+          await nextFrame();
+        }
+        const rendered = new Set([...scroll.querySelectorAll("[data-chat-flow-key]")]
+          .map((element) => element.dataset.chatFlowKey));
+        if (!expected.every((key) => rendered.has(key))) {
+          throw new Error("会话历史尚未全部渲染，已停止导出以避免生成不完整文件。 ");
         }
       }
-      const exportedAt = new Date().toLocaleString("zh-CN");
-      return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:16mm}*{box-sizing:border-box}body{color:#242424;font:14px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0}h1{font-size:23px;margin:0 0 4px}.meta{border-bottom:1px solid #ddd;color:#777;font-size:11px;margin-bottom:20px;padding-bottom:12px}.message{break-inside:avoid;border:1px solid #ddd;border-radius:10px;margin:0 0 12px;padding:12px 14px}.message header{color:#666;font-size:11px;font-weight:700;margin-bottom:6px}.user{background:#f4f7ff}.assistant{background:#fff}.file{background:#fff;border:1px solid #d9deea;border-radius:8px;margin-top:8px;padding:8px 10px}.file strong,.file small{display:block}.file small{color:#667085;font:9px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.activity{break-inside:avoid;border-left:3px solid #ccc;color:#555;margin:8px 0;padding:4px 10px}.activity summary{cursor:default;font-size:11px}.activity pre{font:10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}footer{border-top:1px solid #ddd;color:#888;font-size:10px;margin-top:24px;padding-top:8px}</style></head><body><h1>${escapeHtml(title)}</h1><div class="meta">会话 ${escapeHtml(sessionId)} · 导出于 ${escapeHtml(exportedAt)}</div>${rows.join("")}<footer>由劳博士导出</footer></body></html>`;
+      return scroll;
+    }
+
+    function copyLiveElementState(source, clone) {
+      const originals = [source, ...source.querySelectorAll("*")];
+      const copies = [clone, ...clone.querySelectorAll("*")];
+      for (let index = 0; index < originals.length; index += 1) {
+        const original = originals[index];
+        const copy = copies[index];
+        if (original instanceof HTMLInputElement && copy instanceof HTMLInputElement) {
+          copy.value = original.value;
+          copy.checked = original.checked;
+        } else if (original instanceof HTMLTextAreaElement && copy instanceof HTMLTextAreaElement) {
+          copy.value = original.value;
+          copy.textContent = original.value;
+        } else if (original instanceof HTMLSelectElement && copy instanceof HTMLSelectElement) {
+          copy.value = original.value;
+        } else if (original instanceof HTMLImageElement && copy instanceof HTMLImageElement) {
+          copy.src = original.currentSrc || original.src;
+          copy.removeAttribute("srcset");
+          copy.removeAttribute("loading");
+        } else if (original instanceof HTMLCanvasElement && copy instanceof HTMLCanvasElement) {
+          try {
+            const image = document.createElement("img");
+            image.src = original.toDataURL("image/png");
+            image.className = copy.className;
+            image.style.cssText = copy.style.cssText;
+            const box = original.getBoundingClientRect();
+            if (box.width > 0) image.style.width = `${box.width}px`;
+            if (box.height > 0) image.style.height = `${box.height}px`;
+            copy.replaceWith(image);
+          } catch { /* A tainted third-party canvas remains as an empty canvas. */ }
+        } else if (original instanceof HTMLVideoElement && copy instanceof HTMLVideoElement && original.videoWidth > 0) {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = original.videoWidth;
+            canvas.height = original.videoHeight;
+            canvas.getContext("2d")?.drawImage(original, 0, 0);
+            const image = document.createElement("img");
+            image.src = canvas.toDataURL("image/png");
+            image.className = copy.className;
+            image.style.cssText = copy.style.cssText;
+            copy.replaceWith(image);
+          } catch { /* Keep the cloned video/poster when a frame cannot be read. */ }
+        }
+      }
+    }
+
+    function cloneRenderedElement(source) {
+      const clone = source.cloneNode(true);
+      copyLiveElementState(source, clone);
+      clone.querySelectorAll(".lbs-conv-actions,.lbs-conv-menu,.lbs-conv-overlay")
+        .forEach((element) => element.remove());
+      clone.querySelectorAll("script").forEach((element) => element.remove());
+      for (const element of [clone, ...clone.querySelectorAll("*")]) {
+        for (const attribute of [...element.attributes]) {
+          if (attribute.name.toLowerCase().startsWith("on")) element.removeAttribute(attribute.name);
+        }
+      }
+      return clone;
+    }
+
+    async function expandFoldedContent(scroll) {
+      const clicked = [];
+      const attempted = new WeakSet();
+      const initialStates = new Map();
+
+      for (let round = 0; round < 20; round += 1) {
+        let changed = false;
+        for (const control of scroll.querySelectorAll("[aria-expanded]")) {
+          if (!initialStates.has(control)) {
+            initialStates.set(control, control.getAttribute("aria-expanded") === "true");
+          }
+        }
+        const controls = [...scroll.querySelectorAll('[aria-expanded="false"]')]
+          .filter((element) => !attempted.has(element)
+            && !element.hasAttribute("disabled")
+            && !element.hasAttribute("aria-haspopup"));
+        for (const control of controls) {
+          attempted.add(control);
+          control.click();
+          clicked.push(control);
+          changed = true;
+          await settleFrames(2);
+        }
+        if (!changed) break;
+        await settleFrames(2);
+      }
+
+      return {
+        initialStates,
+        restore: async () => {
+          for (const control of clicked.reverse()) {
+            if (control.isConnected && control.getAttribute("aria-expanded") === "true") control.click();
+          }
+          await settleFrames(2);
+        },
+      };
+    }
+
+    function annotateFoldedContent(scroll, initialStates) {
+      const annotated = [];
+      const seen = new Set();
+      let index = 0;
+      for (const control of scroll.querySelectorAll('[aria-expanded="true"]')) {
+        const toggle = control.closest("[data-disclosure-row]") || control;
+        if (seen.has(toggle)) continue;
+        const controlledId = control.getAttribute("aria-controls");
+        const controlled = controlledId ? document.getElementById(controlledId) : null;
+        const panels = controlled && scroll.contains(controlled) ? [controlled] : [];
+        if (panels.length === 0) {
+          for (let panel = toggle.nextElementSibling; panel; panel = panel.nextElementSibling) panels.push(panel);
+        }
+        if (panels.length === 0) continue;
+        seen.add(toggle);
+        const id = `fold-${index += 1}`;
+        const initiallyOpen = initialStates.get(control) ?? initialStates.get(toggle) ?? true;
+        toggle.dataset.lbsExportToggle = id;
+        toggle.dataset.lbsExportInitial = initiallyOpen ? "expanded" : "collapsed";
+        const addedTabIndex = !toggle.hasAttribute("tabindex");
+        if (addedTabIndex) toggle.tabIndex = 0;
+        for (const panel of panels) {
+          panel.dataset.lbsExportPanel = id;
+          panel.dataset.lbsExportInitial = initiallyOpen ? "expanded" : "collapsed";
+        }
+        annotated.push({ toggle, panels, addedTabIndex });
+      }
+      return () => {
+        for (const { toggle, panels, addedTabIndex } of annotated) {
+          delete toggle.dataset.lbsExportToggle;
+          delete toggle.dataset.lbsExportInitial;
+          if (addedTabIndex) toggle.removeAttribute("tabindex");
+          for (const panel of panels) {
+            delete panel.dataset.lbsExportPanel;
+            delete panel.dataset.lbsExportInitial;
+          }
+        }
+      };
+    }
+
+    function buildExportSnapshot(scroll) {
+      const phase = scroll.closest("[data-phase]");
+      const sessionView = [...scroll.children]
+        .find((element) => !element.matches("[data-composer-seat]"));
+      if (!sessionView) throw new Error("找不到当前会话内容。 ");
+
+      const root = document.createElement("main");
+      root.id = EXPORT_ROOT_ID;
+      root.setAttribute("data-conversation-export", "");
+      const shell = document.createElement("article");
+      shell.className = [phase?.className || "", "lbs-conversation-export-shell"].filter(Boolean).join(" ");
+      if (phase?.dataset.phase) shell.dataset.phase = phase.dataset.phase;
+
+      const header = phase?.querySelector(':scope > [data-slot="conversation.session.header"]');
+      if (header) shell.append(cloneRenderedElement(header));
+
+      const scrollClone = document.createElement("div");
+      scrollClone.className = scroll.className;
+      scrollClone.setAttribute("data-conversation-scroll", "");
+      scrollClone.append(cloneRenderedElement(sessionView));
+      shell.append(scrollClone);
+      root.append(shell);
+
+      const phaseStyle = phase ? getComputedStyle(phase) : null;
+      for (const property of [
+        "--dsh-chat-content-width",
+        "--dsh-composer-card-max-width",
+        "--dsh-composer-side-clearance",
+        "--dsh-composer-dock-inset",
+      ]) {
+        const value = phaseStyle?.getPropertyValue(property);
+        if (value) root.style.setProperty(property, value);
+      }
+      if (phaseStyle) {
+        root.style.color = phaseStyle.color;
+        root.style.background = phaseStyle.backgroundColor;
+        root.style.fontFamily = phaseStyle.fontFamily;
+      }
+      return root;
+    }
+
+    function blobDataUrl(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.addEventListener("load", () => resolve(String(reader.result)), { once: true });
+        reader.addEventListener("error", () => reject(reader.error), { once: true });
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function inlineImageAssets(root) {
+      await Promise.all([...root.querySelectorAll("img")].map(async (image) => {
+        const source = image.getAttribute("src");
+        if (!source || source.startsWith("data:")) return;
+        try {
+          const response = await fetch(source);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          image.src = await blobDataUrl(await response.blob());
+        } catch (error) {
+          throw new Error(`图片资源无法内嵌，已停止导出：${error instanceof Error ? error.message : String(error)}`);
+        }
+      }));
+    }
+
+    function stylesheetText() {
+      const chunks = [];
+      for (const sheet of document.styleSheets) {
+        try {
+          chunks.push([...sheet.cssRules].map((rule) => rule.cssText).join("\n"));
+        } catch { /* Cross-origin styles cannot be embedded; DSH plugin styles are same-origin. */ }
+      }
+      return chunks.join("\n");
+    }
+
+    const escapeHtml = (value) => String(value ?? "")
+      .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+
+    function documentAttributes(element) {
+      return [...element.attributes]
+        .filter((attribute) => attribute.name === "class"
+          || attribute.name === "style"
+          || attribute.name === "lang"
+          || attribute.name === "dir"
+          || attribute.name.startsWith("data-"))
+        .map((attribute) => `${attribute.name}="${escapeHtml(attribute.value)}"`)
+        .join(" ");
+    }
+
+    function standaloneConversationHtml(root, title) {
+      const styles = stylesheetText().replaceAll("</style", "<\\/style");
+      const htmlAttributes = documentAttributes(document.documentElement);
+      const bodyAttributes = documentAttributes(document.body);
+      const exportStyles = `
+        html,body{box-sizing:border-box;height:auto!important;min-height:100%;overflow:visible!important}
+        body{display:block!important;margin:0!important;background:var(--dsw-alias-bg-base,#fff)}
+        #${EXPORT_ROOT_ID}{box-sizing:border-box;display:block!important;width:100%;min-height:100vh;color:inherit;background:inherit}
+        #${EXPORT_ROOT_ID} .lbs-conversation-export-shell{box-sizing:border-box!important;display:flex!important;height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important}
+        #${EXPORT_ROOT_ID} [data-conversation-scroll],
+        #${EXPORT_ROOT_ID} [data-conversation-scroll]>*{box-sizing:border-box!important;height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important}
+        #${EXPORT_ROOT_ID} [data-conversation-scroll]{display:block!important;padding:0!important;scrollbar-gutter:auto!important}
+        #${EXPORT_ROOT_ID} [data-composer-seat],#${EXPORT_ROOT_ID} .lbs-conv-actions,
+        #${EXPORT_ROOT_ID} .lbs-conv-menu,#${EXPORT_ROOT_ID} .lbs-conv-overlay{display:none!important}
+        #${EXPORT_ROOT_ID} [data-lbs-export-toggle]{cursor:pointer}
+        #${EXPORT_ROOT_ID} [data-lbs-export-panel][data-lbs-export-initial="collapsed"],
+        #${EXPORT_ROOT_ID} [data-lbs-export-panel][hidden]{display:none!important}
+        #${EXPORT_ROOT_ID} img,#${EXPORT_ROOT_ID} svg,#${EXPORT_ROOT_ID} canvas{max-width:100%}
+        #${EXPORT_ROOT_ID} pre{max-width:100%;white-space:pre-wrap!important;overflow-wrap:anywhere}
+        #${EXPORT_ROOT_ID} table{max-width:100%;overflow-wrap:anywhere}
+      `;
+      const interactions = `(()=>{
+        const root=document.getElementById(${JSON.stringify(EXPORT_ROOT_ID)});
+        if(!root)return;
+        const apply=(toggle,open)=>{
+          toggle.setAttribute("aria-expanded",String(open));
+          toggle.dataset.lbsExportState=open?"expanded":"collapsed";
+          const id=toggle.dataset.lbsExportToggle;
+          for(const panel of root.querySelectorAll("[data-lbs-export-panel]")){
+            if(panel.dataset.lbsExportPanel!==id)continue;
+            panel.hidden=!open;
+            delete panel.dataset.lbsExportInitial;
+          }
+        };
+        for(const toggle of root.querySelectorAll("[data-lbs-export-toggle]")){
+          let open=toggle.dataset.lbsExportInitial!=="collapsed";
+          apply(toggle,open);
+          delete toggle.dataset.lbsExportInitial;
+          const flip=(event)=>{event.preventDefault();event.stopPropagation();open=!open;apply(toggle,open);};
+          toggle.addEventListener("click",flip);
+          toggle.addEventListener("keydown",(event)=>{if(event.key==="Enter"||event.key===" ")flip(event);});
+        }
+      })();`;
+      return `<!doctype html><html ${htmlAttributes}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="劳博士 DSH 会话导出"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob: http: https:; style-src 'unsafe-inline'; font-src data:; script-src 'unsafe-inline';"><title>${escapeHtml(title)}</title><style>${styles}\n${exportStyles}</style></head><body ${bodyAttributes}>${root.outerHTML}<script>${interactions}</script></body></html>`;
+    }
+
+    function safeHtmlFileName(title) {
+      const sanitized = String(title || "劳博士会话")
+        .replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "-")
+        .replace(/\s+/gu, " ")
+        .slice(0, 120)
+        .replace(/[. ]+$/gu, "");
+      return `${sanitized || "劳博士会话"}.html`;
+    }
+
+    function downloadHtml(html, title) {
+      const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = safeHtmlFileName(title);
+      anchor.style.display = "none";
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      return { canceled: false, browserDownload: true };
     }
 
     async function exportConversation(ctx, sessionId) {
       const bridge = window.laobosDesktop;
-      if (!bridge?.capabilities?.conversationPdf) throw new Error("PDF 导出仅在桌面版中可用。 ");
+      if (ctx.sessions.list.getSnapshot().current !== sessionId) ctx.sessions.open(sessionId);
+      await waitForCurrentSession(ctx, sessionId);
       const session = ctx.sessions.binding(sessionId)?.session;
       if (!session) throw new Error("会话尚未载入。 ");
       await session.open();
-      let snapshot = session.getSnapshot();
-      let pages = 0;
-      while (snapshot.hasMore && pages < 500) {
-        await session.loadOlder();
-        snapshot = session.getSnapshot();
-        pages += 1;
-      }
+      const snapshot = await loadCompleteSnapshot(session);
+      const scroll = await waitForRenderedConversation(snapshot);
       const row = ctx.sessions.list.getSnapshot().byId[sessionId];
       const title = cleanText(row?.title) || "劳博士会话";
-      return bridge.pdf.exportConversation({
-        html: conversationHtml(sessionId, title, snapshot),
-        suggestedName: title,
-      });
+      const folded = await expandFoldedContent(scroll);
+      const removeAnnotations = annotateFoldedContent(scroll, folded.initialStates);
+      try {
+        const root = buildExportSnapshot(scroll);
+        await inlineImageAssets(root);
+        const html = standaloneConversationHtml(root, title);
+        if (bridge?.capabilities?.conversationHtml) {
+          return await bridge.html.exportConversation({ html, suggestedName: title });
+        }
+        return downloadHtml(html, title);
+      } finally {
+        removeAnnotations();
+        await folded.restore();
+      }
     }
 
     async function deleteConversation(ctx, sessionId) {
@@ -280,7 +613,7 @@ window.__ModuleLoader__.load({
         h("button", { className: "lbs-conv-action-button", type: "button", disabled: Boolean(busy), "aria-label": "会话操作", onClick: () => setOpen((value) => !value) },
           h(Primitives.IconEllipsisOutline16, { size: 16 })),
         open ? h("div", { className: "lbs-conv-menu", role: "menu" },
-          h("button", { onClick: () => run("导出", () => exportConversation(module.ctx, sessionId)) }, "导出会话为 PDF"),
+          h("button", { onClick: () => run("导出", () => exportConversation(module.ctx, sessionId)) }, "导出完整会话为 HTML"),
           h("button", { className: "danger", onClick: () => run("删除", () => deleteConversation(module.ctx, sessionId)) }, "删除会话"),
         ) : null,
         editing ? h(EditDialog, { initialValue: initialText, allowEmpty: projection.envelopes.length > 0, busy: busy === "发送", onCancel: () => setEditing(false), onConfirm: (value) => run("发送", async () => { await editAndResend(module.ctx, sessionId, appendFileEnvelopes(value, projection.envelopes)); setEditing(false); }) }) : null,
@@ -316,17 +649,48 @@ window.__ModuleLoader__.load({
       window.dispatchEvent(new CustomEvent("laobos:open-desktop-tool", { detail: { tool, cwd } }));
     }
 
+    function defaultTitleForPath(value, fallback) {
+      const title = String(value || "").replace(/[/\\]+$/u, "").split(/[/\\]/u).pop()?.trim();
+      return title || fallback;
+    }
+
+    async function revealInSystemFileManager(cwd) {
+      if (!cwd) throw new Error("当前项目没有可定位的本地路径。 ");
+      const reveal = window.laobosDesktop?.workspace?.reveal;
+      if (!reveal) throw new Error("系统文件管理器仅在桌面版中可用。 ");
+      await reveal({ root: cwd, path: "." });
+    }
+
+    async function renameWorkspace(item) {
+      const input = window.prompt("工作区名称（清空可恢复目录名称）", item.title);
+      if (input === null) return;
+      const title = input.trim() || defaultTitleForPath(item.path, item.workspaceId);
+      await module.ctx.workspaces.rename(item.workspaceId, title);
+    }
+
+    async function renameSession(id) {
+      const summary = module.ctx.sessions.list.getSnapshot().byId[id];
+      const session = module.ctx.sessions.binding(id)?.session;
+      if (!session) return;
+      const input = window.prompt("会话名称（清空可恢复默认名称）", summary?.title || "");
+      if (input === null) return;
+      const title = input.trim() || defaultTitleForPath(summary?.cwd, id);
+      const result = await session.rename(title);
+      if (!result.ok) throw new Error(result.error.message);
+    }
+
     function ContextMenuBridge() {
       const [menu, setMenu] = useState(null);
       useEffect(() => {
         const onContextMenu = (event) => {
+          if (event.target instanceof Element && event.target.closest(".lbs-workbench")) return;
           const row = event.target instanceof Element ? event.target.closest('[role="treeitem"]') : null;
           if (!row || !row.closest('[role="tree"]')) return;
           const workspace = row.hasAttribute("aria-expanded") ? resolveWorkspace(module.ctx, row) : undefined;
           const sessionId = workspace ? undefined : resolveSessionId(module.ctx, row);
           if (!workspace && !sessionId) return;
           event.preventDefault(); event.stopPropagation();
-          const width = 210; const height = workspace ? 170 : 144;
+          const width = 240; const height = workspace ? 206 : 176;
           setMenu({ kind: workspace ? "workspace" : "session", workspace, sessionId, x: Math.min(event.clientX, window.innerWidth - width - 8), y: Math.min(event.clientY, window.innerHeight - height - 8) });
         };
         const close = () => setMenu(null);
@@ -347,15 +711,18 @@ window.__ModuleLoader__.load({
           h("button", { onClick: act(() => openDesktopTool("files", item.path)) }, "文件管理器"),
           h("button", { onClick: act(() => openDesktopTool("git", item.path)) }, "版本中心"),
           h("button", { onClick: act(() => openDesktopTool("terminal", item.path)) }, "在终端中打开"),
-          h("button", { onClick: act(async () => { const title = window.prompt("工作区名称", item.title); if (title?.trim()) await module.ctx.workspaces.rename(item.workspaceId, title.trim()); }) }, "重命名工作区"),
+          h("button", { onClick: act(() => revealInSystemFileManager(item.path)) }, "在系统文件管理器中打开"),
+          h("button", { onClick: act(() => renameWorkspace(item)) }, "重命名工作区"),
           h("button", { className: "danger", onClick: act(async () => { if (window.confirm(`从侧栏移除“${item.title}”？\n不会删除目录和会话。`)) await module.ctx.workspaces.delete(item.workspaceId); }) }, "从侧栏移除"),
         );
       }
       const id = menu.sessionId;
+      const cwd = module.ctx.sessions.list.getSnapshot().byId[id]?.cwd;
       return h("div", { className: "lbs-conv-menu fixed", style, role: "menu", onPointerDown: (event) => event.stopPropagation() },
         h("button", { onClick: act(() => module.ctx.sessions.open(id)) }, "打开会话"),
-        h("button", { onClick: act(() => exportConversation(module.ctx, id)) }, "导出为 PDF"),
-        h("button", { onClick: act(async () => { const session = module.ctx.sessions.binding(id)?.session; const current = module.ctx.sessions.list.getSnapshot().byId[id]?.title || ""; const title = window.prompt("会话名称", current); if (!title?.trim() || !session) return; const result = await session.rename(title.trim()); if (!result.ok) throw new Error(result.error.message); }) }, "重命名会话"),
+        h("button", { onClick: act(() => revealInSystemFileManager(cwd)) }, "在系统文件管理器中打开"),
+        h("button", { onClick: act(() => exportConversation(module.ctx, id)) }, "导出为 HTML"),
+        h("button", { onClick: act(() => renameSession(id)) }, "重命名会话"),
         h("button", { className: "danger", onClick: act(() => deleteConversation(module.ctx, id)) }, "删除会话"),
       );
     }

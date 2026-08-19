@@ -9,9 +9,11 @@
 | 功能 | 说明 |
 | --- | --- |
 | 🔍 查询 + 正则筛选 | 关键词搜索 GitHub `dsh-plugin` 市场（分页拉取、按星数/Fork/更新时间排序），支持对 **仓库名 / owner·仓库 / 描述 / 全部字段** 做正则二次筛选（不区分大小写） |
-| 📦 下载安装 | 下载仓库 tarball → 解压到 `<DSH_HOME>/profiles/<profile>/node_modules/<name>` → 在 `cordis.patch.yml` 注册插件条目（幂等去重）→ 提示重启生效；支持 `force` 覆盖 |
+| 📦 下载安装 | 下载仓库 tarball → 校验 Host/Client 入口及 `__ModuleLoader__` 注册 ID → 事务化写入 `<DSH_HOME>/profiles/<profile>` → 提示重启生效；支持 `force` 覆盖 |
 | 🚀 上传发布 | 本地插件目录（含 package.json）→ 自动 `git init` / 提交（缺 README、LICENSE 自动生成）→ `gh repo create` 公开/私有仓库并推送 → 自动添加 `dsh-plugin` topic 上架市场 |
 | 🤖 对话工具 | 同时注册 `plugin_market_search` / `plugin_market_install` / `plugin_market_upload` 三个工具，在对话中直接操作市场 |
+
+市场安装会留下一个仅供下一次启动确认的标记。若新增插件导致 Host 启动失败、Client 加载失败或前端启动超时，桌面端会自动停用该用户插件、保留原始 `cordis.patch.yml` 恢复记录，并以安全模式重启；产品内置插件与核心配置覆盖不会被自动停用。
 | 🛡 零依赖 | host 端仅使用 Node 内置模块；自带 HTTP 代理（CONNECT 隧道）支持，可走 `http://127.0.0.1:7890` 等本地代理访问 GitHub |
 
 ## 📥 安装

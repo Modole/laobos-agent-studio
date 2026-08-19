@@ -10,6 +10,8 @@ import {
   summarizeDshFailureOutput,
 } from "../desktop/dsh-runtime.mjs";
 import { verifyPackagedRuntime } from "../scripts/verify-packaged-runtime.mjs";
+import { verifyDesktopResources } from "../scripts/verify-desktop-resources.mjs";
+import { verifyWindowsPackagedRuntime } from "../scripts/verify-windows-packaged-runtime.mjs";
 
 test("desktop runtime startup errors retain useful child-process output", () => {
   assert.equal(
@@ -59,14 +61,26 @@ test("desktop shell boots DSH directly with a sandboxed renderer", async () => {
     new URL("../desktop/main.mjs", import.meta.url),
     "utf8",
   );
+  const permissionSource = await readFile(
+    new URL("../desktop/permissions.mjs", import.meta.url),
+    "utf8",
+  );
 
   assert.match(mainSource, /sandbox:\s*true/);
   assert.match(mainSource, /nodeIntegration:\s*false/);
   assert.match(mainSource, /startDshRuntime/);
   assert.match(mainSource, /migratePiOnFirstRun/);
-  assert.match(mainSource, /setPermissionRequestHandler/);
+  assert.match(mainSource, /installPermissionPolicy/);
+  assert.match(mainSource, /bootRuntimeWithPluginRecovery/);
+  assert.match(mainSource, /quarantineUserPlugins/);
+  assert.match(mainSource, /Failed to load plugins/);
+  assert.match(permissionSource, /setPermissionCheckHandler/);
+  assert.match(permissionSource, /setPermissionRequestHandler/);
+  assert.match(permissionSource, /clipboard-sanitized-write/);
   assert.match(mainSource, /app\.setPath\("userData", path\.join\(app\.getPath\("appData"\), "劳博士 Dev"\)\)/);
   assert.match(mainSource, /const productName = isDevelopment \? "劳博士（开发版）" : "劳博士"/);
+  assert.match(mainSource, /before-quit-for-update/);
+  assert.match(mainSource, /event\.preventDefault\(\)[\s\S]*prepareToQuit\(\)[\s\S]*app\.quit\(\)/);
   assert.doesNotMatch(mainSource, /bridge-process|resolvePiBinary|PI_STUDIO_PI_BIN/);
 
   const runtimeSource = await readFile(
@@ -90,6 +104,17 @@ test("desktop mode does not expose the manual Bridge connection dialog", async (
   assert.match(studioSource, /劳博士已就绪/);
 });
 
+test("studio falls back to file uploads for images unsupported by the selected model", async () => {
+  const studioSource = await readFile(
+    new URL("../app/studio.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(studioSource, /const imagesAsFiles = Boolean\(/);
+  assert.match(studioSource, /imageMode: imagesAsFiles \? "file" : "multimodal"/);
+  assert.doesNotMatch(studioSource, /当前模型不支持图片，请切换到支持视觉输入的模型/);
+});
+
 test("desktop development starts Electron without the legacy Pi renderer bridge", async () => {
   const packageJson = await readFile(
     new URL("../package.json", import.meta.url),
@@ -101,13 +126,18 @@ test("desktop development starts Electron without the legacy Pi renderer bridge"
 });
 
 test("desktop release configuration builds native macOS and Windows installers", async () => {
-  const [packageJson, builderConfig, workflow] = await Promise.all([
+  const [packageJson, builderConfig, testUpdateConfig, workflow] = await Promise.all([
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../electron-builder.yml", import.meta.url), "utf8"),
+    readFile(new URL("../electron-builder.test-update.yml", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/installers.yml", import.meta.url), "utf8"),
   ]);
 
   assert.match(packageJson, /"desktop:installer": "npm run build:desktop-plugins && electron-builder --publish never"/);
+  assert.match(packageJson, /"desktop:installer:test-update"/);
+  assert.match(testUpdateConfig, /identity: "-"/);
+  assert.match(testUpdateConfig, /hardenedRuntime: false/);
+  assert.match(testUpdateConfig, /afterSign: \.\/scripts\/sign-test-update\.mjs/);
   assert.match(builderConfig, /target: dmg[\s\S]*arch:\n\s+- arm64/);
   assert.match(builderConfig, /artifactName: "laobos-studio-\$\{version\}-macos-\$\{arch\}\.\$\{ext\}"/);
   assert.match(builderConfig, /target: nsis[\s\S]*arch:\n\s+- x64/);
@@ -116,15 +146,53 @@ test("desktop release configuration builds native macOS and Windows installers",
   assert.match(builderConfig, /asarUnpack:[\s\S]*"packages\/\*\*"/);
   assert.match(builderConfig, /compression: normal/);
   assert.match(builderConfig, /npmRebuild: false/);
+  assert.match(builderConfig, /beforePack: \.\/scripts\/stage-windows-git\.mjs/);
+  assert.match(builderConfig, /extraResources:[\s\S]*from: resources\/mingit-win32-x64[\s\S]*to: git/);
   assert.match(builderConfig, /!node_modules\/cpu-features/);
   assert.match(builderConfig, /!node_modules\/node-pty\/prebuilds\/darwin-/);
   assert.equal(builderConfig.match(/!resources\/pi/g)?.length, 2);
+  assert.equal(builderConfig.match(/!resources\/mingit-win32-x64/g)?.length, 2);
+  assert.equal(builderConfig.match(/!\.cache/g)?.length, 2);
   assert.match(workflow, /runs-on: macos-15/);
   assert.match(workflow, /runs-on: windows-latest/);
-  assert.equal(workflow.match(/npm run audit:public/g)?.length, 2);
+  assert.equal(workflow.match(/npm run audit:public/g)?.length, 1);
+  assert.match(workflow, /RELEASE_REPOSITORY: Modole\/laobos-agent-studio/);
   assert.equal(workflow.match(/verify-packaged-runtime\.mjs/g)?.length, 2);
+  assert.equal(workflow.match(/verify-desktop-resources\.mjs/g)?.length, 2);
+  assert.equal(workflow.match(/verify-windows-packaged-runtime\.mjs/g)?.length, 1);
   assert.equal(workflow.match(/app\.asar/g)?.length, 2);
   assert.equal(workflow.match(/actions\/upload-artifact@v7/g)?.length, 2);
+  assert.match(builderConfig, /target: zip[\s\S]*arch:\n\s+- arm64/);
+  assert.match(builderConfig, /repo: laobos-agent-studio/);
+  assert.match(workflow, /latest-mac\.yml/);
+  assert.match(workflow, /latest\.yml/);
+  assert.match(workflow, /github\.ref_type == 'tag'/);
+  assert.match(workflow, /GH_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.doesNotMatch(workflow, /RELEASES_TOKEN|production-release/);
+  assert.match(workflow, /desktop:installer:test-update/);
+  assert.match(workflow, /CSC_IDENTITY_AUTO_DISCOVERY: false/);
+  assert.match(workflow, /sha256sum \* > SHA256SUMS/);
+});
+
+test("Windows packaged runtime verification rejects missing platform binaries", async () => {
+  const resourcesDirectory = await mkdtemp(path.join(tmpdir(), "laobos-windows-runtime-test-"));
+  try {
+    await assert.rejects(
+      verifyWindowsPackagedRuntime(resourcesDirectory),
+      /Koffi Windows x64/,
+    );
+  } finally {
+    await rm(resourcesDirectory, { recursive: true, force: true });
+  }
+});
+
+test("desktop resource verification rejects a package without its local brand asset", async () => {
+  const resourcesDirectory = await mkdtemp(path.join(tmpdir(), "laobos-desktop-resources-test-"));
+  try {
+    await assert.rejects(verifyDesktopResources(resourcesDirectory), /缺少插件品牌 Logo/);
+  } finally {
+    await rm(resourcesDirectory, { recursive: true, force: true });
+  }
 });
 
 test("packaged runtime verification supports an ASAR application", async () => {

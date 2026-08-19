@@ -1,5 +1,5 @@
-import path from "node:path";
-import { boundedString, resolveAuthorizedPath } from "../ipc-security.mjs";
+import { boundedString } from "../ipc-security.mjs";
+import { resolveWorkspaceDirectory } from "../workspace-authorization.mjs";
 import {
   branchGit,
   commitGit,
@@ -28,10 +28,10 @@ const channels = [
   "laobos:git:sync",
 ];
 
-export function registerGitReviewIpc({ ipcMain, workspace, authorize }) {
+export function registerGitReviewIpc({ ipcMain, workspace, workspaceAuthorizer, authorize }) {
   const handle = (channel, operation) => ipcMain.handle(channel, async (event, input = {}) => {
     authorize(event);
-    const root = await gitRoot(workspace, input.root);
+    const root = await gitRoot(workspace, input.root, workspaceAuthorizer);
     return operation(root, input);
   });
 
@@ -60,10 +60,14 @@ export function registerGitReviewIpc({ ipcMain, workspace, authorize }) {
   };
 }
 
-async function gitRoot(workspace, requested) {
+async function gitRoot(workspace, requested, workspaceAuthorizer) {
   const root = requested ? boundedString(requested, "工作区路径", 4_096) : workspace;
-  const relative = path.relative(workspace, path.resolve(root));
-  return (await resolveAuthorizedPath(workspace, relative, { kind: "directory" })).path;
+  return resolveWorkspaceDirectory({
+    authorizer: workspaceAuthorizer,
+    defaultRoot: workspace,
+    requested: root,
+    label: "Git 工作区",
+  });
 }
 
 // Kept for compatibility with existing callers and fixtures.

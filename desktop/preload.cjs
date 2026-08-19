@@ -6,7 +6,7 @@ const invoke = (channel, input) => ipcRenderer.invoke(channel, input);
 contextBridge.exposeInMainWorld("laobosDesktop", Object.freeze({
   version: 1,
   capabilities: Object.freeze({
-    conversationPdf: true,
+    conversationHtml: true,
     sessionTrash: true,
     workspaceFiles: true,
     gitReview: true,
@@ -17,10 +17,28 @@ contextBridge.exposeInMainWorld("laobosDesktop", Object.freeze({
     browserOps: true,
     ssh: true,
     apps: true,
+    clipboard: true,
     shellManager: true,
+    softwareUpdate: true,
   }),
-  pdf: Object.freeze({
-    exportConversation: (input) => invoke("laobos:pdf:export-conversation", input),
+  clipboard: Object.freeze({
+    writeText: (text) => invoke("laobos:clipboard:write-text", { text }),
+  }),
+  updates: Object.freeze({
+    status: () => invoke("laobos:updates:status"),
+    preferences: () => invoke("laobos:updates:preferences"),
+    setPreferences: (input) => invoke("laobos:updates:set-preferences", input),
+    check: () => invoke("laobos:updates:check"),
+    download: () => invoke("laobos:updates:download"),
+    install: () => invoke("laobos:updates:install"),
+    onState: (listener) => {
+      const wrapped = (_event, payload) => listener(payload);
+      ipcRenderer.on("laobos:updates:state", wrapped);
+      return () => ipcRenderer.removeListener("laobos:updates:state", wrapped);
+    },
+  }),
+  html: Object.freeze({
+    exportConversation: (input) => invoke("laobos:html:export-conversation", input),
   }),
   sessions: Object.freeze({
     trash: (input) => invoke("laobos:sessions:trash", input),
@@ -29,6 +47,9 @@ contextBridge.exposeInMainWorld("laobosDesktop", Object.freeze({
     context: () => invoke("laobos:workspace:context"),
     list: (input) => invoke("laobos:workspace:list", input),
     read: (input) => invoke("laobos:workspace:read", input),
+    write: (input) => invoke("laobos:workspace:write", input),
+    rename: (input) => invoke("laobos:workspace:rename", input),
+    remove: (input) => invoke("laobos:workspace:remove", input),
     reveal: (input) => invoke("laobos:workspace:reveal", input),
   }),
   git: Object.freeze({

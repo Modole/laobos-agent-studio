@@ -17,6 +17,8 @@
 /.next/
 /.vinext/
 /out/
+/.cache/
+/resources/mingit-win32-x64/
 
 # misc
 .DS_Store

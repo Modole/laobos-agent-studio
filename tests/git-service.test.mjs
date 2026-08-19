@@ -9,13 +9,49 @@ import {
   commitGit,
   diffGit,
   GitServiceError,
+  gitExecutableCandidates,
   initializeGit,
   inspectGit,
+  resolveGitExecutable,
   restoreGit,
   stageGit,
   syncGit,
   unstageGit,
 } from "../packages/laobos-system-tools/lib/git-service.mjs";
+
+test("Git executable discovery covers packaged Windows GUI environments", async () => {
+  const env = {
+    ProgramFiles: "C:\\Program Files",
+    LOCALAPPDATA: "C:\\Users\\tester\\AppData\\Local",
+    USERPROFILE: "C:\\Users\\tester",
+    ChocolateyInstall: "C:\\ProgramData\\chocolatey",
+  };
+  const candidates = gitExecutableCandidates({
+    platform: "win32",
+    env,
+    resourcesPath: "D:\\Apps\\Laobos\\resources",
+  });
+  assert.ok(candidates.includes("C:\\Program Files\\Git\\cmd\\git.exe"));
+  assert.ok(candidates.includes("C:\\Users\\tester\\AppData\\Local\\Programs\\Git\\cmd\\git.exe"));
+  assert.ok(candidates.includes("C:\\Users\\tester\\scoop\\apps\\git\\current\\cmd\\git.exe"));
+  assert.ok(candidates.includes("C:\\ProgramData\\chocolatey\\bin\\git.exe"));
+  assert.ok(candidates.includes("D:\\Apps\\Laobos\\resources\\git\\cmd\\git.exe"));
+
+  const checked = [];
+  const executable = await resolveGitExecutable({
+    platform: "win32",
+    env,
+    resourcesPath: "D:\\Apps\\Laobos\\resources",
+    canAccess: async (candidate) => {
+      checked.push(candidate);
+      if (candidate !== "C:\\Users\\tester\\AppData\\Local\\Programs\\Git\\cmd\\git.exe") {
+        throw new Error("missing");
+      }
+    },
+  });
+  assert.equal(executable, "C:\\Users\\tester\\AppData\\Local\\Programs\\Git\\cmd\\git.exe");
+  assert.ok(checked.length > 1);
+});
 
 function git(cwd, ...args) {
   return execFileSync("git", args, { cwd, encoding: "utf8" });

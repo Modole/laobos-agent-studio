@@ -1425,14 +1425,11 @@ export function PiStudio({ mode = "studio" }: { mode?: StudioMode }) {
     const selectedModelInfo = models.find(
       (model) => `${model.provider}/${model.id}` === selectedModel,
     );
-    if (
+    const imagesAsFiles = Boolean(
       pendingAttachments.some((attachment) => attachment.kind === "image") &&
       selectedModelInfo?.input &&
-      !selectedModelInfo.input.includes("image")
-    ) {
-      showToast("当前模型不支持图片，请切换到支持视觉输入的模型");
-      return;
-    }
+      !selectedModelInfo.input.includes("image"),
+    );
 
     const conversationId = activeConversation.id;
     const assistantId = newId();
@@ -1449,6 +1446,7 @@ export function PiStudio({ mode = "studio" }: { mode?: StudioMode }) {
           {
             method: "POST",
             body: JSON.stringify({
+              imageMode: imagesAsFiles ? "file" : "multimodal",
               attachments: pendingAttachments.map((attachment) => ({
                 id: attachment.id,
                 name: attachment.name,

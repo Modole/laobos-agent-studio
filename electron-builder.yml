@@ -5,6 +5,14 @@ asarUnpack:
   - "packages/**"
 compression: normal
 npmRebuild: false
+electronUpdaterCompatibility: ">=2.16"
+beforePack: ./scripts/stage-windows-git.mjs
+
+publish:
+  provider: github
+  owner: Modole
+  repo: laobos-agent-studio
+  releaseType: release
 
 directories:
   output: out/installers
@@ -16,6 +24,7 @@ files:
   - "!dist{,/**}"
   - "!dist-desktop{,/**}"
   - "!outputs{,/**}"
+  - "!.cache{,/**}"
   - "!tests{,/**}"
   - "!.dsh{,/**}"
   - "!.git{,/**}"
@@ -24,6 +33,7 @@ files:
   - "!.vinext{,/**}"
   - "!.wrangler{,/**}"
   - "!resources/pi{,/**}"
+  - "!resources/mingit-win32-x64{,/**}"
   - "!node_modules/cpu-features{,/**}"
   - "!node_modules/node-pty/build{,/**}"
   - "!node_modules/ssh2/lib/protocol/crypto/build{,/**}"
@@ -31,10 +41,12 @@ files:
 mac:
   icon: build/laobos-icon.icns
   category: public.app-category.developer-tools
-  identity: null
-  hardenedRuntime: false
+  hardenedRuntime: true
   target:
     - target: dmg
+      arch:
+        - arm64
+    - target: zip
       arch:
         - arm64
   artifactName: "laobos-studio-${version}-macos-${arch}.${ext}"
@@ -42,12 +54,18 @@ mac:
 win:
   icon: public/laobos-logo.png
   executableName: laobos-studio
+  extraResources:
+    - from: resources/mingit-win32-x64
+      to: git
+      filter:
+        - "**/*"
   files:
     - "**/*"
     - "!out{,/**}"
     - "!dist{,/**}"
     - "!dist-desktop{,/**}"
     - "!outputs{,/**}"
+    - "!.cache{,/**}"
     - "!tests{,/**}"
     - "!.dsh{,/**}"
     - "!.git{,/**}"
@@ -56,6 +74,7 @@ win:
     - "!.vinext{,/**}"
     - "!.wrangler{,/**}"
     - "!resources/pi{,/**}"
+    - "!resources/mingit-win32-x64{,/**}"
     - "!node_modules/cpu-features{,/**}"
     - "!node_modules/node-pty/build{,/**}"
     - "!node_modules/ssh2/lib/protocol/crypto/build{,/**}"

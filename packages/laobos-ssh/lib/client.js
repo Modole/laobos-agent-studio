@@ -9438,12 +9438,55 @@ ${h2.join(`
       const css = `${xterm_default}
 
       .lbs-ssh-panel{background:var(--dsw-alias-bg-base);bottom:0;color:var(--dsw-alias-label-primary);display:grid;grid-template-rows:42px minmax(0,1fr) 24px;left:var(--lbs-left-column,280px);pointer-events:auto;position:fixed;right:var(--lbs-right-column,56px);top:0;z-index:2147483060}.lbs-ssh-toolbar{align-items:center;background:var(--dsw-alias-bg-layer-1);border-bottom:1px solid var(--dsw-alias-border-l1);display:flex;gap:4px;padding:0 8px}.lbs-ssh-toolbar strong{font-size:13px;margin:0 4px}.lbs-ssh-toolbar-spacer{flex:1}.lbs-ssh-button,.lbs-ssh-icon{appearance:none;background:transparent;border:0;border-radius:6px;color:inherit;cursor:pointer;font:inherit;font-size:11px;height:29px;padding:0 9px}.lbs-ssh-icon{display:grid;padding:0;place-items:center;width:29px}.lbs-ssh-button:hover,.lbs-ssh-icon:hover{background:var(--dsw-alias-interactive-bg-hover)}.lbs-ssh-button.primary{background:var(--dsw-alias-interactive-bg-primary);color:var(--dsw-alias-label-on-primary)}.lbs-ssh-button:disabled,.lbs-ssh-icon:disabled{cursor:not-allowed;opacity:.42}.lbs-ssh-layout{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:0}.lbs-ssh-sidebar{background:var(--dsw-alias-bg-layer-1);border-right:1px solid var(--dsw-alias-border-l1);display:grid;grid-template-rows:42px minmax(0,1fr);min-height:0}.lbs-ssh-search{align-items:center;display:flex;padding:7px}.lbs-ssh-search input{background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;box-sizing:border-box;color:inherit;font:11px inherit;height:28px;padding:0 8px;width:100%}.lbs-ssh-groups{min-height:0;overflow:auto;padding:0 5px 8px}.lbs-ssh-group h3{align-items:center;color:var(--dsw-alias-label-tertiary);display:flex;font-size:9px;height:24px;margin:0;padding:0 5px}.lbs-ssh-group h3 span{margin-left:auto}.lbs-ssh-row{align-items:center;border-radius:6px;display:grid;grid-template-columns:minmax(0,1fr) 27px 27px 27px;margin-bottom:2px}.lbs-ssh-row[data-active=true],.lbs-ssh-row:hover{background:var(--dsw-alias-interactive-bg-hover)}.lbs-ssh-row-main{background:transparent;border:0;color:inherit;cursor:pointer;display:grid;font:inherit;gap:2px;min-width:0;padding:7px 5px 7px 8px;text-align:left}.lbs-ssh-row-main strong,.lbs-ssh-row-main small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-ssh-row-main strong{font-size:11px}.lbs-ssh-row-main small{color:var(--dsw-alias-label-tertiary);font-size:9px}.lbs-ssh-row-action{background:transparent;border:0;border-radius:5px;color:var(--dsw-alias-label-secondary);cursor:pointer;height:25px;opacity:.1}.lbs-ssh-row:hover .lbs-ssh-row-action,.lbs-ssh-row-action:focus-visible{opacity:1}.lbs-ssh-row-action:hover{background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}.lbs-ssh-row-action.danger:hover{color:#d94b4b}.lbs-ssh-empty-list{align-content:center;color:var(--dsw-alias-label-tertiary);display:grid;font-size:10px;gap:8px;justify-items:center;min-height:150px;padding:14px;text-align:center}.lbs-ssh-workspace{background:#101419;display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;min-width:0}.lbs-ssh-tabs{background:#181d23;border-bottom:1px solid #2b323b;display:flex;min-height:34px;overflow:auto hidden}.lbs-ssh-tab{align-items:center;border-right:1px solid #2b323b;border-top:2px solid transparent;color:#95a0ab;display:flex;max-width:200px;min-width:125px}.lbs-ssh-tab[data-active=true]{background:#101419;border-top-color:#55b58a;color:#e8edf2}.lbs-ssh-tab-main{align-items:center;background:transparent;border:0;color:inherit;cursor:pointer;display:flex;flex:1;font:10px inherit;gap:6px;min-width:0;padding:0 8px}.lbs-ssh-tab-main span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-ssh-tab-close{background:transparent;border:0;color:inherit;height:25px;width:25px}.lbs-ssh-dot{background:#87929d;border-radius:50%;height:6px;width:6px}.lbs-ssh-dot[data-state=connected]{background:#39b87b}.lbs-ssh-dot[data-state=connecting],.lbs-ssh-dot[data-state=awaiting]{background:#e1a83d}.lbs-ssh-dot[data-state=error]{background:#e25d68}.lbs-ssh-stage{min-height:0;position:relative}.lbs-ssh-surface{inset:0;pointer-events:none;position:absolute;visibility:hidden}.lbs-ssh-surface[data-active=true]{pointer-events:auto;visibility:visible}.lbs-ssh-host{box-sizing:border-box;height:100%;padding:8px}.lbs-ssh-empty{align-content:center;color:#8f9aa6;display:grid;gap:9px;height:100%;justify-items:center;padding:28px;text-align:center}.lbs-ssh-empty strong{color:#e3e9ee;font-size:13px}.lbs-ssh-empty p{font-size:11px;line-height:1.5;margin:0;max-width:430px}.lbs-ssh-error{background:#482129;color:#ffc4ca;font-size:11px;left:10px;max-width:calc(100% - 20px);padding:7px 10px;position:absolute;top:9px;z-index:3}.lbs-ssh-global-error{background:#482129;border:1px solid #6d303a;border-radius:6px;color:#ffc4ca;font-size:10px;max-width:min(520px,calc(100% - 20px));padding:7px 10px;pointer-events:none;position:absolute;right:10px;top:48px;z-index:6}.lbs-ssh-status{align-items:center;background:var(--dsw-alias-bg-layer-1);border-top:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-tertiary);display:flex;font-size:9px;gap:12px;padding:0 8px}.lbs-ssh-status span:last-child{margin-left:auto}.lbs-ssh-modal-backdrop{align-items:center;background:rgba(0,0,0,.46);display:flex;inset:0;justify-content:center;padding:22px;position:fixed;z-index:2147483220}.lbs-ssh-modal{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:12px;box-shadow:var(--dsw-shadow-lv3);display:grid;grid-template-rows:46px minmax(0,1fr) auto;max-height:min(760px,92vh);overflow:hidden;width:min(610px,calc(100vw - 34px))}.lbs-ssh-modal.wide{width:min(820px,calc(100vw - 34px))}.lbs-ssh-modal-header{align-items:center;border-bottom:1px solid var(--dsw-alias-border-l1);display:flex;padding:0 14px}.lbs-ssh-modal-header h2{font-size:14px;margin:0}.lbs-ssh-modal-header button{margin-left:auto}.lbs-ssh-modal-body{min-height:0;overflow:auto;padding:15px}.lbs-ssh-modal-footer{border-top:1px solid var(--dsw-alias-border-l1);display:flex;gap:7px;justify-content:flex-end;padding:10px 14px}.lbs-ssh-form{display:grid;gap:12px}.lbs-ssh-form-grid{display:grid;gap:10px;grid-template-columns:1fr 110px}.lbs-ssh-form label{color:var(--dsw-alias-label-secondary);display:grid;font-size:10px;gap:5px}.lbs-ssh-form .wide{grid-column:1/-1}.lbs-ssh-form input,.lbs-ssh-form select,.lbs-ssh-form textarea{background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;box-sizing:border-box;color:inherit;font:11px inherit;height:32px;padding:0 8px;width:100%}.lbs-ssh-form textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;height:112px;padding:8px;resize:vertical}.lbs-ssh-check{align-items:center!important;display:flex!important;gap:7px!important}.lbs-ssh-check input{height:14px!important;width:14px!important}.lbs-ssh-help{color:var(--dsw-alias-label-tertiary);font-size:9px;line-height:1.5;margin:0}.lbs-ssh-form-error{color:#d94b4b;font-size:10px;margin:0}.lbs-ssh-credentials{display:grid;gap:7px}.lbs-ssh-credential{align-items:center;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;padding:9px}.lbs-ssh-credential span{display:grid;gap:2px}.lbs-ssh-credential small{color:var(--dsw-alias-label-tertiary);font-size:9px}.lbs-ssh-fingerprint{background:var(--dsw-alias-bg-base);border-radius:6px;font:10px ui-monospace,SFMono-Regular,Menlo,monospace;padding:9px;word-break:break-all}@media(max-width:850px){.lbs-ssh-panel{left:0;right:0}.lbs-ssh-layout{grid-template-columns:195px minmax(0,1fr)}}@media(max-width:620px){.lbs-ssh-layout{grid-template-columns:1fr}.lbs-ssh-sidebar{display:none}.lbs-ssh-toolbar strong{display:none}}
+      .lbs-ssh-workspace,.lbs-ssh-stage{background:var(--dsw-alias-bg-base)}.lbs-ssh-tabs{background:var(--dsw-alias-bg-layer-1);border-bottom-color:var(--dsw-alias-border-l1)}.lbs-ssh-tab{border-right-color:var(--dsw-alias-border-l1);color:var(--dsw-alias-label-tertiary)}.lbs-ssh-tab[data-active=true]{background:var(--dsw-alias-bg-base);border-top-color:var(--dsw-alias-state-success-primary,#39b87b);color:var(--dsw-alias-label-primary)}.lbs-ssh-empty{color:var(--dsw-alias-label-tertiary)}.lbs-ssh-empty strong{color:var(--dsw-alias-label-primary)}.lbs-ssh-error,.lbs-ssh-global-error{background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#d94b4b) 10%,var(--dsw-alias-bg-layer-1));border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary,#d94b4b) 28%,transparent);color:var(--dsw-alias-state-error-primary,#d94b4b)}
     `;
       if (typeof document !== "undefined" && !document.querySelector('style[data-plugin-css="@laobos/dsh-ssh"]')) {
         const style = document.createElement("style");
         style.dataset.pluginCss = "@laobos/dsh-ssh";
         style.textContent = css;
         document.head.append(style);
+      }
+      function terminalTheme(element) {
+        const styles = getComputedStyle(element);
+        const color = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
+        const dark = document.body.hasAttribute("data-ds-dark-theme");
+        return {
+          background: color("--dsw-alias-bg-base", dark ? "#151517" : "#ffffff"),
+          foreground: color("--dsw-alias-label-primary", dark ? "#f1f3f5" : "#0f1115"),
+          cursor: color("--dsw-alias-label-primary", dark ? "#f1f3f5" : "#0f1115"),
+          cursorAccent: color("--dsw-alias-bg-base", dark ? "#151517" : "#ffffff"),
+          selectionBackground: color("--dsw-alias-interactive-bg-active", dark ? "rgba(88,166,255,.28)" : "rgba(9,105,218,.18)"),
+          black: dark ? "#484f58" : "#24292f",
+          red: dark ? "#ff7b72" : "#cf222e",
+          green: dark ? "#3fb950" : "#1a7f37",
+          yellow: dark ? "#d29922" : "#9a6700",
+          blue: dark ? "#58a6ff" : "#0969da",
+          magenta: dark ? "#bc8cff" : "#8250df",
+          cyan: dark ? "#39c5cf" : "#1b7c83",
+          white: dark ? "#b1bac4" : "#6e7781",
+          brightBlack: dark ? "#6e7681" : "#57606a",
+          brightRed: dark ? "#ffa198" : "#a40e26",
+          brightGreen: dark ? "#56d364" : "#116329",
+          brightYellow: dark ? "#e3b341" : "#4d2d00",
+          brightBlue: dark ? "#79c0ff" : "#218bff",
+          brightMagenta: dark ? "#d2a8ff" : "#a475f9",
+          brightCyan: dark ? "#56d4dd" : "#3192aa",
+          brightWhite: dark ? "#f0f6fc" : "#24292f"
+        };
+      }
+      function syncTerminalTheme(terminal, element) {
+        const applyTheme = () => {
+          terminal.options.theme = terminalTheme(element);
+        };
+        const observer = new MutationObserver(applyTheme);
+        observer.observe(document.body, { attributes: true, attributeFilter: ["data-ds-dark-theme"] });
+        const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+        media?.addEventListener?.("change", applyTheme);
+        applyTheme();
+        return () => {
+          observer.disconnect();
+          media?.removeEventListener?.("change", applyTheme);
+        };
       }
       function Modal({ title, wide, children, footer, onClose }) {
         return /* @__PURE__ */ React.createElement("div", { className: "lbs-ssh-modal-backdrop", onMouseDown: (event) => {
@@ -9588,11 +9631,12 @@ ${h2.join(`
           }
           let connectionId = "";
           let disposed = false;
-          const terminal = new Dl({ cursorBlink: true, fontSize: 13, lineHeight: 1.2, scrollback: 1e4, theme: { background: "#101419", foreground: "#e8edf2", cursor: "#d8e6f3" } });
+          const terminal = new Dl({ cursorBlink: true, fontSize: 13, lineHeight: 1.2, scrollback: 1e4, theme: terminalTheme(host.current) });
           terminalRef.current = terminal;
           const fit = new o();
           terminal.loadAddon(fit);
           terminal.open(host.current);
+          const stopThemeSync = syncTerminalTheme(terminal, host.current);
           const fitTerminal = () => {
             try {
               fit.fit();
@@ -9642,6 +9686,7 @@ ${h2.join(`
           return () => {
             disposed = true;
             terminalRef.current = null;
+            stopThemeSync();
             resize.disconnect();
             input.dispose();
             offData();

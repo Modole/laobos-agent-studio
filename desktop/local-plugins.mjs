@@ -26,6 +26,7 @@ export const bundledPluginNames = [
   "laobos-ssh",
   "laobos-app-manager",
   "laobos-market",
+  "laobos-updater",
 ];
 
 const markerName = ".laobos-managed-plugin.json";

@@ -481,7 +481,7 @@ function isTextAttachment(attachment) {
   );
 }
 
-async function saveAttachmentBatch(sessionId, input) {
+async function saveAttachmentBatch(sessionId, input, { imagesAsFiles = false } = {}) {
   if (!Array.isArray(input) || input.length === 0) {
     throw new HttpError(400, "请选择至少一个附件。");
   }
@@ -532,7 +532,9 @@ async function saveAttachmentBatch(sessionId, input) {
       .trim()
       .toLowerCase()
       .slice(0, 120);
-    const kind = supportedInlineImageTypes.has(mimeType) ? "image" : "file";
+    const kind = !imagesAsFiles && supportedInlineImageTypes.has(mimeType)
+      ? "image"
+      : "file";
     normalized.push({
       id,
       name,
@@ -651,8 +653,11 @@ async function buildAttachmentPrompt(message, sessionId, batch) {
   }
 
   const prompt = message || "请查看并处理这些附件。";
+  const guidance = images.length
+    ? "Use the image inputs for images and the listed paths or inline content for other files."
+    : "Use the listed file paths or inline content to inspect the attachments.";
   return {
-    message: `${prompt}\n\n<pi-studio-attachments batch="${batch.id}">\nThe user attached these local files. Use the image inputs for images and the listed paths or inline content for other files.\n${lines.join("\n")}${inlineSections.join("")}\n</pi-studio-attachments>`,
+    message: `${prompt}\n\n<pi-studio-attachments batch="${batch.id}">\nThe user attached these local files. ${guidance}\n${lines.join("\n")}${inlineSections.join("")}\n</pi-studio-attachments>`,
     images,
   };
 }
@@ -1020,8 +1025,6 @@ async function listSystemToolNames() {
   try {
     return await withEmbeddedEngine(async (embeddedEngine) => [
       "knowledge_search",
-      "workflow_manager",
-	  "workflow_delete",
 	  "knowledge_manager",
 	  "knowledge_delete",
       "git_manager",
@@ -1031,10 +1034,6 @@ async function listSystemToolNames() {
         .listKnowledgeCollections()
         .filter((collection) => collection.agentEnabled)
         .map((collection) => collection.toolName),
-      ...embeddedEngine
-        .listWorkflows()
-        .filter((workflow) => workflow.publishedVersion)
-        .map((workflow) => workflow.toolName),
     ]);
   } catch {
     return [];
@@ -1497,9 +1496,7 @@ function routeMatch(pathname, expression) {
 async function handleSystemToolsRequest(request, response, url, headers) {
   if (
     url.pathname !== "/api/knowledge" &&
-    !url.pathname.startsWith("/api/knowledge/") &&
-    url.pathname !== "/api/workflows" &&
-    !url.pathname.startsWith("/api/workflows/")
+    !url.pathname.startsWith("/api/knowledge/")
   ) {
     return false;
   }
@@ -1588,61 +1585,7 @@ async function handleSystemToolsRequest(request, response, url, headers) {
     return true;
   }
 
-  if (request.method === "GET" && url.pathname === "/api/workflows") {
-    const workflows = await withSystemToolsEngine(async (embeddedEngine) =>
-      embeddedEngine.listWorkflows(),
-    );
-    sendJson(response, 200, { workflows }, headers);
-    return true;
-  }
-
-  if (request.method === "PUT" && url.pathname === "/api/workflows") {
-    const body = await parseBody(request);
-    const workflow = await withSystemToolsEngine(async (embeddedEngine) =>
-      embeddedEngine.upsertWorkflow(body),
-    );
-    sendJson(response, 200, { workflow }, headers);
-    return true;
-  }
-
-  const workflowActionMatch = routeMatch(
-    url.pathname,
-    /^\/api\/workflows\/([A-Za-z0-9][A-Za-z0-9._-]{0,127})\/(publish|run)$/u,
-  );
-  if (request.method === "POST" && workflowActionMatch?.[2] === "publish") {
-    const published = await withSystemToolsEngine(async (embeddedEngine) =>
-      embeddedEngine.publishWorkflow(workflowActionMatch[1]),
-    );
-    restartRuntimes();
-    sendJson(response, 200, { published }, headers);
-    return true;
-  }
-  if (request.method === "POST" && workflowActionMatch?.[2] === "run") {
-    const body = await parseBody(request);
-    const result = await withSystemToolsEngine(async (embeddedEngine) =>
-      embeddedEngine.runWorkflow(workflowActionMatch[1], body),
-    );
-    sendJson(response, 200, { result }, headers);
-    return true;
-  }
-
-  const workflowMatch = routeMatch(
-    url.pathname,
-    /^\/api\/workflows\/([A-Za-z0-9][A-Za-z0-9._-]{0,127})$/u,
-  );
-  if (request.method === "DELETE" && workflowMatch) {
-    await withSystemToolsEngine(async (embeddedEngine) =>
-	  embeddedEngine.deleteWorkflow(
-		workflowMatch[1],
-		request.headers["x-resource-revision"] || undefined,
-	  ),
-    );
-    restartRuntimes();
-    sendJson(response, 200, { ok: true }, headers);
-    return true;
-  }
-
-  throw new HttpError(404, "未找到该知识库或工作流接口。");
+  throw new HttpError(404, "未找到该知识库接口。");
 }
 
 async function handleRequest(request, response, token) {
@@ -2059,6 +2002,7 @@ async function handleRequest(request, response, token) {
     const batch = await saveAttachmentBatch(
       attachmentUploadMatch[1],
       body.attachments,
+      { imagesAsFiles: body.imageMode === "file" },
     );
     sendJson(
       response,

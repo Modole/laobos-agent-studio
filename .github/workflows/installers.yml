@@ -1,57 +1,184 @@
-name: Desktop Installers
+name: Desktop Release
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+env:
+  NODE_VERSION: 22.19.0
+  RELEASE_REPOSITORY: Modole/laobos-agent-studio
 
 jobs:
-  macos-arm64:
-    runs-on: macos-15
-    timeout-minutes: 45
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22.19.0
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - id: version
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          tag="v${version}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "${tag}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package version ${version}." >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
       - run: npm run audit:public
-      - run: npm run desktop:installer -- --mac dmg --arm64
+      - run: npm run lint
+      - run: npm test
+
+  macos-arm64:
+    needs: verify
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Build signed and notarized macOS release
+        if: env.CSC_LINK != ''
+        run: npm run desktop:installer -- --mac dmg zip --arm64
+      - name: Build reproducibly signed community macOS release
+        if: env.CSC_LINK == ''
+        run: npm run desktop:installer:test-update -- --mac dmg zip --arm64
       - run: node scripts/verify-packaged-runtime.mjs "out/installers/mac-arm64/劳博士.app/Contents/Resources/app.asar"
-      - run: test "$(find out/installers -maxdepth 1 -name 'laobos-studio-*-macos-arm64.dmg' | wc -l | tr -d ' ')" = "1"
+      - run: node scripts/verify-desktop-resources.mjs "out/installers/mac-arm64/劳博士.app/Contents/Resources"
+      - name: Verify macOS signature and update artifacts
+        shell: bash
+        run: |
+          codesign --verify --deep --strict --verbose=2 "out/installers/mac-arm64/劳博士.app"
+          if [[ -n "${CSC_LINK}" ]]; then
+            xcrun stapler validate "out/installers/mac-arm64/劳博士.app"
+            spctl --assess --type execute --verbose=2 "out/installers/mac-arm64/劳博士.app"
+          else
+            echo "No Developer ID secret configured; publishing the stable ad-hoc community update chain."
+          fi
+          test "$(find out/installers -maxdepth 1 -name 'laobos-studio-*-macos-arm64.dmg' | wc -l | tr -d ' ')" = "1"
+          test "$(find out/installers -maxdepth 1 -name 'laobos-studio-*-macos-arm64.zip' | wc -l | tr -d ' ')" = "1"
+          test -f out/installers/latest-mac.yml
       - uses: actions/upload-artifact@v7
         with:
           name: laobos-studio-macos-arm64
-          path: out/installers/laobos-studio-*-macos-arm64.dmg
+          path: |
+            out/installers/laobos-studio-*-macos-arm64.dmg
+            out/installers/laobos-studio-*-macos-arm64.zip
+            out/installers/*.blockmap
+            out/installers/latest-mac.yml
           if-no-files-found: error
           compression-level: 0
-          retention-days: 7
+          retention-days: 3
 
   windows-x64:
+    needs: verify
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    env:
+      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22.19.0
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: npm run audit:public
-      - run: npm run desktop:installer -- --win nsis --x64
+      - name: Build signed Windows release
+        if: env.WIN_CSC_LINK != ''
+        run: npm run desktop:installer -- --win nsis --x64
+      - name: Build unsigned community Windows release
+        if: env.WIN_CSC_LINK == ''
+        run: npm run desktop:installer -- --win nsis --x64
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
       - run: node scripts/verify-packaged-runtime.mjs "out/installers/win-unpacked/resources/app.asar"
-      - shell: pwsh
+      - run: node scripts/verify-desktop-resources.mjs "out/installers/win-unpacked/resources"
+      - run: node scripts/verify-windows-packaged-runtime.mjs "out/installers/win-unpacked/resources"
+      - name: Verify Windows signature and update artifacts
+        shell: pwsh
         run: |
           $installers = @(Get-ChildItem "out/installers/laobos-studio-*-windows-x64-setup.exe")
-          if ($installers.Count -ne 1) {
-            throw "Windows installer was not generated."
+          if ($installers.Count -ne 1) { throw "Windows installer was not generated." }
+          if ($env:WIN_CSC_LINK) {
+            $signedFiles = @($installers[0].FullName, "out/installers/win-unpacked/laobos-studio.exe")
+            foreach ($file in $signedFiles) {
+              $signature = Get-AuthenticodeSignature $file
+              if ($signature.Status -ne "Valid") { throw "Invalid Windows signature for ${file}: $($signature.Status)" }
+            }
+          } else {
+            Write-Host "No Authenticode secret configured; publishing the unsigned community installer."
           }
+          if (-not (Test-Path "out/installers/latest.yml")) { throw "latest.yml was not generated." }
       - uses: actions/upload-artifact@v7
         with:
           name: laobos-studio-windows-x64
-          path: out/installers/laobos-studio-*-windows-x64-setup.exe
+          path: |
+            out/installers/laobos-studio-*-windows-x64-setup.exe
+            out/installers/*.blockmap
+            out/installers/latest.yml
           if-no-files-found: error
           compression-level: 0
-          retention-days: 7
+          retention-days: 3
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: [verify, macos-arm64, windows-x64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: laobos-studio-*
+          path: release-assets
+          merge-multiple: true
+      - name: Validate update metadata and create checksums
+        run: |
+          node scripts/verify-update-release.mjs release-assets "${{ needs.verify.outputs.version }}"
+          cd release-assets
+          sha256sum * > SHA256SUMS
+      - name: Publish release atomically
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          test -n "${GH_TOKEN}"
+          existing_draft="$(gh release view "${RELEASE_TAG}" --repo "${RELEASE_REPOSITORY}" --json isDraft --jq .isDraft 2>/dev/null || true)"
+          if [[ "${existing_draft}" == "false" ]]; then
+            echo "Published release ${RELEASE_TAG} already exists in ${RELEASE_REPOSITORY}." >&2
+            exit 1
+          fi
+          if [[ "${existing_draft}" != "true" ]]; then
+            gh release create "${RELEASE_TAG}" \
+              --repo "${RELEASE_REPOSITORY}" \
+              --draft \
+              --title "劳博士开源客户端 ${RELEASE_TAG}" \
+              --notes "劳博士开源客户端 ${RELEASE_VERSION}。首次安装请下载 DMG 或 Windows Setup；ZIP、blockmap 和 latest 元数据用于应用内自动更新。"
+          fi
+          gh release upload "${RELEASE_TAG}" release-assets/* --repo "${RELEASE_REPOSITORY}" --clobber
+          gh release edit "${RELEASE_TAG}" --repo "${RELEASE_REPOSITORY}" --draft=false --latest

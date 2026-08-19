@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import z from "@deepseek-ai/schemastery";
 import { defineTool } from "@deepseek-ai/dsh-tools";
@@ -95,20 +94,6 @@ const jsonOutput = {
   render: (_args, value) => [{ type: "text", text: JSON.stringify(value, null, 2) }],
 };
 
-function fieldSchema(field) {
-  const base = { ...(field.required ? { required: true } : {}), ...(field.description ? { description: field.description } : {}) };
-  if (field.options?.length) return { ...base, type: "string", enum: field.options };
-  if (["string", "number", "boolean"].includes(field.type)) return { ...base, type: field.type };
-  if (field.type === "array") return { ...base, type: "array" };
-  if (field.type === "object" || field.type === "file") return { ...base, type: "object", additionalProperties: true };
-  return { ...base, type: "json" };
-}
-
-function workflowParameters(definition) {
-  const input = definition.nodes.find((node) => node.type === "input");
-  return Object.fromEntries((input?.fields || []).map((field) => [field.name, fieldSchema(field)]));
-}
-
 function json(res, status, value) {
   const body = JSON.stringify(value);
   res.writeHead(status, {
@@ -155,14 +140,23 @@ function errorResponse(res, error) {
   });
 }
 
-function gitWorkspace(workspacePath, exec) {
+export function gitWorkspace(workspacePath, exec) {
   const requested = exec?.agent?.session?.header?.cwd;
-  const candidate = path.resolve(workspacePath, typeof requested === "string" ? requested : ".");
-  const relative = path.relative(workspacePath, candidate);
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new SystemToolsError("WORKSPACE_BOUNDARY", "当前会话工作区超出劳博士授权范围。", 403);
+  const candidate = path.resolve(
+    workspacePath,
+    typeof requested === "string" && requested.trim() ? requested : ".",
+  );
+  try {
+    const canonical = realpathSync(candidate);
+    if (!statSync(canonical).isDirectory()) throw new Error("not a directory");
+    return canonical;
+  } catch {
+    throw new SystemToolsError(
+      "WORKSPACE_UNAVAILABLE",
+      `当前会话工作区不可访问：${candidate}。请确认目录存在且当前 Windows 用户拥有访问权限。`,
+      400,
+    );
   }
-  return candidate;
 }
 
 function isPlanActive(events) {
@@ -321,61 +315,11 @@ function manageKnowledge(store, args, workspacePath) {
         title: args.title || existing?.title,
         content: args.content ?? existing?.content,
         source: args.source ?? existing?.source ?? "Agent 对话",
+        imageUrls: args.imageUrls ?? existing?.imageUrls ?? [],
       });
     }
     default:
       throw new SystemToolsError("ACTION_INVALID", `不支持的知识库操作：${args.action || "空"}。`);
-  }
-}
-
-async function manageWorkflow(store, args, executionOptions) {
-  const find = () => store.getWorkflow(requiredArgument(args.workflowId, "工作流 ID"));
-  const requireRevision = () => {
-    if (!args.expectedRevision) {
-      throw new SystemToolsError("REVISION_REQUIRED", "修改工作流前必须先读取并携带当前 revision。", 409);
-    }
-    return args.expectedRevision;
-  };
-  switch (args.action) {
-    case "list_workflows":
-      return store.listWorkflows();
-    case "get_workflow":
-      return find();
-    case "create_workflow":
-      return store.upsertWorkflow({
-        name: requiredArgument(args.name, "工作流名称"),
-        description: args.description || "由 Agent 创建的可复用自动化流程。",
-        toolName: requiredArgument(args.toolName, "工作流工具名"),
-        definition: args.definition,
-      });
-    case "update_workflow": {
-      const existing = find();
-      return store.upsertWorkflow({
-        id: existing.id,
-        expectedRevision: requireRevision(),
-        name: args.name ?? existing.name,
-        description: args.description ?? existing.description,
-        toolName: args.toolName ?? existing.toolName,
-        definition: args.definition ?? existing.definition,
-      });
-    }
-    case "test_workflow": {
-      const workflow = find();
-      return store.runWorkflow(workflow.id, args.input || {}, executionOptions);
-    }
-    case "publish_workflow": {
-      const workflow = find();
-      return store.publishWorkflow(workflow.id, requireRevision());
-    }
-    case "set_enabled": {
-      const workflow = find();
-      if (typeof args.enabled !== "boolean") {
-        throw new SystemToolsError("INPUT_INVALID", "启停工作流必须提供 enabled 布尔值。");
-      }
-      return store.setWorkflowEnabled(workflow.id, args.enabled, requireRevision());
-    }
-    default:
-      throw new SystemToolsError("ACTION_INVALID", `不支持的工作流操作：${args.action || "空"}。`);
   }
 }
 
@@ -423,15 +367,6 @@ export function apply(ctx, config) {
 不要保存临时对话、猜测、未经确认的结论、凭据或其他秘密。更新前先读取现有文档并携带 revision。删除必须使用 knowledge_delete。`,
   });
   ctx.systemPrompt.section({
-    name: "laobos:workflow-guidance",
-    order: 41,
-    text: () => `# 工作流使用规则
-
-工作流是可复用的 Agent 自动化。只有用户明确要求自动化，或一个稳定流程会重复使用时，才使用 workflow_manager 创建工作流；一次性任务不要创建。
-创建后先 test_workflow，确认结果再 publish_workflow。首次发布会自动启用并作为虚拟工作流插件注册，用户可以随时停用。
-更新、发布或启停前先读取当前工作流并携带 revision。删除必须使用 workflow_delete，并说明原因。`,
-  });
-  ctx.systemPrompt.section({
     name: "laobos:git-guidance",
     order: 42,
     text: () => `# Git 版本管理规则
@@ -455,31 +390,10 @@ export function apply(ctx, config) {
     isConcurrencySafe: () => true,
   }));
 
-  const workflowExecutionOptions = (exec = {}) => ({
-    signal: exec.signal,
-    async invokeTool(call) {
-      if (typeof ctx.tools.execute !== "function") {
-        throw new SystemToolsError("WORKFLOW_TOOL_UNAVAILABLE", "当前运行环境未提供嵌套工具调用。");
-      }
-      const parentCallId = exec.callId || randomUUID();
-      const nested = await ctx.tools.execute({
-        callId: `${parentCallId}:workflow:${randomUUID()}`,
-        rootCallId: exec.rootCallId || parentCallId,
-        parent: exec.token,
-        name: call.name,
-        arguments: call.arguments,
-        agent: exec.agent,
-        signal: exec.signal,
-      });
-      if (nested.isError) throw new Error(nested.error.message);
-      return nested.value;
-    },
-  });
-
   let dynamicDisposers = [];
   const refreshDynamicTools = () => {
     for (const dispose of dynamicDisposers.splice(0)) dispose();
-    const names = new Set(["knowledge_search", "knowledge_manager", "knowledge_delete", "workflow_manager", "workflow_delete"]);
+    const names = new Set(["knowledge_search", "knowledge_manager", "knowledge_delete"]);
     for (const collection of visibleCollections(store, workspacePath).filter((item) => item.agentEnabled)) {
       if (names.has(collection.toolName)) continue;
       names.add(collection.toolName);
@@ -493,28 +407,6 @@ export function apply(ctx, config) {
         output: jsonOutput,
         execute: async (args) => store.searchKnowledge({ ...args, collectionId: collection.id }),
         isConcurrencySafe: () => true,
-      })));
-    }
-    for (const workflow of store.listPublishedWorkflows().filter((item) => item.enabled)) {
-      if (names.has(workflow.toolName)) {
-        ctx.logger.warn(`跳过重复的劳博士工具名：${workflow.toolName}`);
-        continue;
-      }
-      names.add(workflow.toolName);
-      dynamicDisposers.push(ctx.tools.register(defineTool({
-        name: workflow.toolName,
-        description: workflow.description || `Run the published workflow ${workflow.name}.`,
-        parameters: workflowParameters(workflow.definition),
-        output: jsonOutput,
-        async execute(args, exec) {
-          const result = await store.runWorkflow(
-            workflow.workflowId,
-            args,
-            workflowExecutionOptions(exec),
-            workflow.version,
-          );
-          return result.output;
-        },
       })));
     }
   };
@@ -536,6 +428,7 @@ export function apply(ctx, config) {
       title: { type: "string", description: "Document title for upsert_document." },
       content: { type: "string", description: "Durable document content for upsert_document." },
       source: { type: "string", description: "Source file, URL, conversation, or provenance note." },
+      imageUrls: { type: "array", description: "Optional HTTP(S) image URLs rendered with this document (maximum 12)." },
     },
     output: jsonOutput,
     execute: async (args) => {
@@ -567,46 +460,6 @@ export function apply(ctx, config) {
       }
       refreshDynamicTools();
       return { deleted: true, resourceType: args.resourceType, id: args.id, reason: args.reason };
-    },
-  }));
-
-  ctx.tools.register(defineTool({
-    name: "workflow_manager",
-    description: "List, read, create, update, test, publish, enable, or disable reusable workflows. This tool never deletes workflows. Read the current revision before changing an existing workflow.",
-    parameters: {
-      action: { type: "string", required: true, enum: ["list_workflows", "get_workflow", "create_workflow", "update_workflow", "test_workflow", "publish_workflow", "set_enabled"], description: "Workflow management action." },
-      workflowId: { type: "string", description: "Existing workflow id." },
-      expectedRevision: { type: "string", description: "Current revision; required for update, publish, and enable changes." },
-      name: { type: "string", description: "Human-readable workflow name." },
-      description: { type: "string", description: "When and why the Agent should use this workflow." },
-      toolName: { type: "string", description: "Stable lowercase Agent tool name." },
-      definition: { type: "json", description: "Workflow DAG definition with nodes and edges." },
-      input: { type: "json", description: "JSON object used by test_workflow." },
-      enabled: { type: "boolean", description: "Whether the published workflow is available to the Agent." },
-    },
-    output: jsonOutput,
-    execute: async (args, exec) => {
-      const result = await manageWorkflow(store, args, workflowExecutionOptions(exec));
-      if (["publish_workflow", "set_enabled"].includes(args.action)) refreshDynamicTools();
-      return result;
-    },
-    isConcurrencySafe: (args) => ["list_workflows", "get_workflow"].includes(args.action),
-  }));
-
-  ctx.tools.register(defineTool({
-    name: "workflow_delete",
-    description: "Delete a workflow and unregister its virtual workflow plugin after user approval. Read the current revision first.",
-    parameters: {
-      id: { type: "string", required: true, description: "Exact workflow id." },
-      expectedRevision: { type: "string", required: true, description: "Current revision returned by workflow_manager." },
-      reason: { type: "string", required: true, description: "Why this workflow should be deleted." },
-    },
-    output: jsonOutput,
-    execute: async (args) => {
-      const workflow = store.getWorkflow(args.id);
-      store.deleteWorkflow(workflow.id, args.expectedRevision);
-      refreshDynamicTools();
-      return { deleted: true, id: workflow.id, name: workflow.name, reason: args.reason };
     },
   }));
 
@@ -668,12 +521,10 @@ export function apply(ctx, config) {
 
   ctx.on("tools/pre-execute", async (exec, next) => {
     const decision = await next();
-    if (!["knowledge_delete", "workflow_delete", "git_restore", "git_publish"].includes(exec.name) || decision.kind !== "allow") return decision;
+    if (!["knowledge_delete", "git_restore", "git_publish"].includes(exec.name) || decision.kind !== "allow") return decision;
     return {
       kind: "ask",
-      reason: exec.name === "workflow_delete"
-        ? "删除工作流会同步移除虚拟插件和全部发布版本，请确认 Agent 的删除请求。"
-        : exec.name === "knowledge_delete"
+      reason: exec.name === "knowledge_delete"
           ? "删除知识库内容不可直接恢复，请确认 Agent 的删除请求。"
           : exec.name === "git_restore"
             ? "恢复文件或删除分支会丢弃本地状态，请确认 Agent 的操作请求。"
@@ -697,7 +548,9 @@ export function apply(ctx, config) {
         let value;
 
         if (req.method === "GET" && route === "/brand/icon.png") {
-          const icon = readFileSync(new URL("../../../public/laobos-logo.png", import.meta.url));
+          // Packaged plugins are copied into DSH Home and cannot reach the Studio
+          // repository's public directory. Keep every runtime asset package-local.
+          const icon = readFileSync(new URL("../assets/laobos-logo.png", import.meta.url));
           res.writeHead(200, {
             "content-type": "image/png",
             "cache-control": "public, max-age=86400, immutable",
@@ -731,7 +584,6 @@ export function apply(ctx, config) {
           const skillCatalog = await skills.list();
           value = {
             collections: visibleCollections(store, workspacePath),
-            workflows: store.listWorkflows(),
             skills: skillCatalog.skills,
             mcp: mcp.list(),
           };
@@ -819,28 +671,6 @@ export function apply(ctx, config) {
           findCollection(store, document.collectionId, workspacePath);
           store.deleteDocument(id, url.searchParams.get("revision"));
           value = { deleted: true }; refreshDynamicTools();
-        } else if (req.method === "GET" && route === "/workflows") {
-          value = store.listWorkflows();
-        } else if (req.method === "GET" && route.startsWith("/workflows/")) {
-          value = store.getWorkflow(decodeURIComponent(route.slice(11)));
-        } else if (req.method === "POST" && route === "/workflows") {
-          value = store.upsertWorkflow(await body(req)); refreshDynamicTools();
-        } else if (req.method === "DELETE" && route.startsWith("/workflows/")) {
-          store.deleteWorkflow(decodeURIComponent(route.slice(11)), url.searchParams.get("revision"));
-          value = { deleted: true }; refreshDynamicTools();
-        } else if (req.method === "POST" && /^\/workflows\/[^/]+\/publish$/u.test(route)) {
-          const input = await body(req);
-          value = store.publishWorkflow(decodeURIComponent(route.split("/")[2]), input.expectedRevision); refreshDynamicTools();
-        } else if (req.method === "POST" && /^\/workflows\/[^/]+\/enabled$/u.test(route)) {
-          const input = await body(req);
-          value = store.setWorkflowEnabled(
-            decodeURIComponent(route.split("/")[2]),
-            input.enabled,
-            input.expectedRevision,
-          );
-          refreshDynamicTools();
-        } else if (req.method === "POST" && /^\/workflows\/[^/]+\/run$/u.test(route)) {
-          value = await store.runWorkflow(decodeURIComponent(route.split("/")[2]), (await body(req)).input || {});
         } else {
           json(res, 404, { error: { code: "NOT_FOUND", message: "接口不存在。" } });
           return;
