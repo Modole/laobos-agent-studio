@@ -83,7 +83,7 @@
     "yaml": "2.9.0"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.37.1",
+    "@cloudflare/vite-plugin": "1.53.0",
     "@electron/asar": "4.2.1",
     "@electron/packager": "20.0.4",
     "@tailwindcss/postcss": "4.2.1",
@@ -102,7 +102,7 @@
     "typescript": "5.9.3",
     "vinext": "0.0.50",
     "vite": "8.0.13",
-    "wrangler": "4.92.0",
+    "wrangler": "4.124.0",
     "yauzl": "3.4.0"
   },
   "type": "module"
