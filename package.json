@@ -101,7 +101,7 @@
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vinext": "0.0.50",
-    "vite": "8.0.13",
+    "vite": "8.2.1",
     "wrangler": "4.92.0",
     "yauzl": "3.4.0"
   },
