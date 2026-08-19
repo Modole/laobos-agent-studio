@@ -47,11 +47,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     env:
-      CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      HAS_MAC_SIGNING: ${{ secrets.MAC_CSC_LINK != '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -60,10 +56,16 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build signed and notarized macOS release
-        if: env.CSC_LINK != ''
+        if: env.HAS_MAC_SIGNING == 'true'
         run: npm run desktop:installer -- --mac dmg zip --arm64
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - name: Build reproducibly signed community macOS release
-        if: env.CSC_LINK == ''
+        if: env.HAS_MAC_SIGNING != 'true'
         run: npm run desktop:installer:test-update -- --mac dmg zip --arm64
       - run: node scripts/verify-packaged-runtime.mjs "out/installers/mac-arm64/劳博士.app/Contents/Resources/app.asar"
       - run: node scripts/verify-desktop-resources.mjs "out/installers/mac-arm64/劳博士.app/Contents/Resources"
@@ -71,7 +73,7 @@ jobs:
         shell: bash
         run: |
           codesign --verify --deep --strict --verbose=2 "out/installers/mac-arm64/劳博士.app"
-          if [[ -n "${CSC_LINK}" ]]; then
+          if [[ "${HAS_MAC_SIGNING}" == "true" ]]; then
             xcrun stapler validate "out/installers/mac-arm64/劳博士.app"
             spctl --assess --type execute --verbose=2 "out/installers/mac-arm64/劳博士.app"
           else
@@ -97,8 +99,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     env:
-      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      HAS_WINDOWS_SIGNING: ${{ secrets.WIN_CSC_LINK != '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -107,10 +108,13 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build signed Windows release
-        if: env.WIN_CSC_LINK != ''
+        if: env.HAS_WINDOWS_SIGNING == 'true'
         run: npm run desktop:installer -- --win nsis --x64
+        env:
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
       - name: Build unsigned community Windows release
-        if: env.WIN_CSC_LINK == ''
+        if: env.HAS_WINDOWS_SIGNING != 'true'
         run: npm run desktop:installer -- --win nsis --x64
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -122,7 +126,7 @@ jobs:
         run: |
           $installers = @(Get-ChildItem "out/installers/laobos-studio-*-windows-x64-setup.exe")
           if ($installers.Count -ne 1) { throw "Windows installer was not generated." }
-          if ($env:WIN_CSC_LINK) {
+          if ($env:HAS_WINDOWS_SIGNING -eq "true") {
             $signedFiles = @($installers[0].FullName, "out/installers/win-unpacked/laobos-studio.exe")
             foreach ($file in $signedFiles) {
               $signature = Get-AuthenticodeSignature $file

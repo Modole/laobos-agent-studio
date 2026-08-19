@@ -170,6 +170,10 @@ test("desktop release configuration builds native macOS and Windows installers",
   assert.match(workflow, /GH_TOKEN: \$\{\{ github\.token \}\}/);
   assert.doesNotMatch(workflow, /RELEASES_TOKEN|production-release/);
   assert.match(workflow, /desktop:installer:test-update/);
+  assert.match(workflow, /HAS_MAC_SIGNING: \$\{\{ secrets\.MAC_CSC_LINK != '' \}\}/);
+  assert.match(workflow, /HAS_WINDOWS_SIGNING: \$\{\{ secrets\.WIN_CSC_LINK != '' \}\}/);
+  assert.match(workflow, /Build signed and notarized macOS release[\s\S]*env:[\s\S]*CSC_LINK: \$\{\{ secrets\.MAC_CSC_LINK \}\}/);
+  assert.match(workflow, /Build signed Windows release[\s\S]*env:[\s\S]*CSC_LINK: \$\{\{ secrets\.WIN_CSC_LINK \}\}/);
   assert.match(workflow, /CSC_IDENTITY_AUTO_DISCOVERY: false/);
   assert.match(workflow, /sha256sum \* > SHA256SUMS/);
 });
