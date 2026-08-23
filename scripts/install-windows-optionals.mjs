@@ -19,17 +19,34 @@ const specifications = WINDOWS_X64_OPTIONAL_PACKAGES.map((packageName) => {
 });
 
 console.log(`准备 Windows x64 原生依赖：\n- ${specifications.join("\n- ")}`);
-const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
+const npmArguments = [
+  "install",
+  "--no-save",
+  "--ignore-scripts",
+  "--force",
+  "--legacy-peer-deps",
+  ...specifications,
+];
+
+// Windows cannot execute npm.cmd directly with spawnSync({ shell: false }) on
+// every supported Node release. npm exposes the JavaScript CLI path to scripts
+// through npm_execpath, so invoke that CLI with the current Node executable.
+// Keep a cmd.exe fallback for users who run this file directly instead of via
+// `npm run desktop:prepare-windows`.
+const npmExecPath = process.env.npm_execpath;
+const npmExecutable = npmExecPath
+  ? process.execPath
+  : process.platform === "win32"
+    ? process.env.ComSpec || "cmd.exe"
+    : "npm";
+const npmExecutableArguments = npmExecPath
+  ? [npmExecPath, ...npmArguments]
+  : process.platform === "win32"
+    ? ["/d", "/s", "/c", "npm.cmd", ...npmArguments]
+    : npmArguments;
 const result = spawnSync(
   npmExecutable,
-  [
-    "install",
-    "--no-save",
-    "--ignore-scripts",
-    "--force",
-    "--legacy-peer-deps",
-    ...specifications,
-  ],
+  npmExecutableArguments,
   { stdio: "inherit", env: process.env },
 );
 
