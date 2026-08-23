@@ -4,6 +4,12 @@ import {
   parseFileEnvelopes,
   serializeFileEnvelope,
 } from "../lib/envelope.js";
+import {
+  browserElementFromReference,
+  browserElementLabel,
+  parseBrowserElementEnvelopes,
+  serializeBrowserElementEnvelope,
+} from "../../laobos-browserops/lib/element-envelope.js";
 
 window.__ModuleLoader__.load({
   id: "@laobos/dsh-file-attachments",
@@ -12,7 +18,6 @@ window.__ModuleLoader__.load({
     var exports = module.exports;
     Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
     const React = require("react");
-    const AttachmentUI = require("@deepseek-ai/dsh-client-ui-attachment");
     const Primitives = require("@deepseek-ai/dsh-client-ui-primitives");
     const { useEffect, useRef, useState } = React;
 
@@ -22,6 +27,8 @@ window.__ModuleLoader__.load({
       .lbs-file-card-list{align-items:flex-end;display:flex;flex-direction:column;gap:6px;max-width:100%;width:300px}.lbs-file-card{align-items:center;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;box-sizing:border-box;display:grid;gap:7px;grid-template-columns:minmax(0,1fr) auto;min-height:48px;padding:5px 6px 5px 7px;text-align:left;width:100%}.lbs-file-card-open{align-items:center;appearance:none;background:transparent;border:0;border-radius:7px;color:inherit;cursor:pointer;display:grid;gap:8px;grid-template-columns:32px minmax(0,1fr);min-width:0;padding:2px;text-align:left}.lbs-file-card-open:hover{background:var(--dsw-alias-interactive-bg-hover)}.lbs-file-svg-wrap{align-items:center;background:var(--dsw-alias-interactive-bg-hover-solid);border-radius:7px;color:var(--dsw-alias-label-secondary);display:flex;height:32px;justify-content:center;width:32px}.lbs-file-svg{display:block;height:20px;width:20px}.lbs-file-card-main{display:block;min-width:0}.lbs-file-card-name{color:var(--dsw-alias-label-primary);display:block;font-size:12px;font-weight:600;line-height:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-file-card-meta{color:var(--dsw-alias-label-tertiary);display:block;font-size:10px;line-height:14px;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}.lbs-file-card-action,.lbs-file-message-action{align-items:center;appearance:none;background:transparent;border:0;border-radius:7px;color:var(--dsw-alias-label-tertiary);cursor:pointer;display:inline-flex;height:28px;justify-content:center;padding:6px;width:28px}.lbs-file-card-action:hover,.lbs-file-message-action:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}
       [data-composer-card]>div:has([role="group"] img){display:none!important}.lbs-file-composer-zone{box-sizing:border-box;margin:0 auto;max-width:calc(var(--dsh-composer-card-max-width) + 2 * var(--dsh-composer-side-clearance));padding:0 var(--dsh-composer-side-clearance);width:100%}.lbs-file-composer-panel{background:transparent;border:0;border-radius:0;box-shadow:none;padding:0 2px}.lbs-file-composer-head{align-items:center;color:var(--dsw-alias-label-secondary);display:flex;font-size:11px;font-weight:600;justify-content:space-between;line-height:16px;margin-bottom:5px;padding:0 2px}.lbs-file-composer-count{color:var(--dsw-alias-label-tertiary);font-weight:500}.lbs-file-composer-rail{align-items:center;display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;padding:0 1px;scrollbar-width:none}.lbs-file-composer-rail::-webkit-scrollbar{display:none}.lbs-file-composer-item{align-items:center;background:var(--dsw-alias-interactive-bg-hover-solid);border:1px solid var(--dsw-alias-border-l2);border-radius:8px;box-sizing:border-box;display:grid;flex:0 0 min(220px,calc(100vw - 96px));gap:6px;grid-template-columns:28px minmax(0,1fr) 22px;height:42px;max-width:220px;padding:4px 4px 4px 6px}.lbs-file-composer-item .lbs-file-svg-wrap{background:var(--dsw-specific-input-major);border-radius:6px;height:26px;width:26px}.lbs-file-composer-item .lbs-file-svg{height:16px;width:16px}.lbs-file-composer-image{border-radius:6px;height:26px;object-fit:cover;width:26px}.lbs-file-composer-remove{align-items:center;appearance:none;background:transparent;border:0;border-radius:5px;color:var(--dsw-alias-label-tertiary);cursor:pointer;display:flex;height:22px;justify-content:center;padding:0;width:22px}.lbs-file-composer-remove:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
       .lbs-file-message-actions{align-items:center;display:flex;gap:4px;height:28px;min-width:28px}.lbs-file-message-time{color:var(--dsw-alias-label-tertiary);font-size:12px;opacity:0;padding-right:4px;transition:opacity 80ms;white-space:nowrap}[data-time-hover-root]:hover .lbs-file-message-time,[data-time-hover-root]:focus-within .lbs-file-message-time{opacity:1}.lbs-file-extra{max-width:100%;width:460px}@media(max-width:700px){.lbs-file-user-stack{max-width:92%}.lbs-file-card-list{width:min(300px,78vw)}}
+      .lbs-browser-context-composer{align-items:center;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 7%,transparent);border:1px solid color-mix(in srgb,var(--dsw-alias-brand-primary) 22%,var(--dsw-alias-border-l1));border-radius:9px;display:grid;gap:7px;grid-template-columns:auto minmax(0,1fr);margin:0 2px 6px;padding:4px 5px 4px 8px}.lbs-browser-context-label{align-items:center;color:var(--dsw-alias-label-secondary);display:flex;font-size:10px;font-weight:600;gap:4px;white-space:nowrap}.lbs-browser-context-rail{align-items:center;display:flex;gap:5px;min-width:0;overflow-x:auto;scrollbar-width:none}.lbs-browser-context-rail::-webkit-scrollbar{display:none}.lbs-browser-context-item{align-items:center;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:7px;display:grid;flex:0 0 min(250px,calc(100vw - 150px));gap:6px;grid-template-columns:24px minmax(0,1fr) 22px;height:34px;max-width:250px;padding:2px 3px 2px 5px}.lbs-browser-context-icon{align-items:center;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 13%,transparent);border-radius:6px;color:var(--dsw-alias-brand-primary);display:inline-flex;height:24px;justify-content:center;width:24px}.lbs-browser-context-main{display:block;min-width:0}.lbs-browser-context-name{color:var(--dsw-alias-label-primary);display:block;font-size:11px;font-weight:600;line-height:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-browser-context-meta{color:var(--dsw-alias-label-tertiary);display:block;font-size:9px;line-height:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .lbs-browser-message-group{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;box-sizing:border-box;max-width:100%;overflow:hidden;width:360px}.lbs-browser-message-group>summary{align-items:center;cursor:pointer;display:grid;gap:8px;grid-template-columns:28px minmax(0,1fr) 16px;list-style:none;min-height:42px;padding:4px 8px}.lbs-browser-message-group>summary::-webkit-details-marker{display:none}.lbs-browser-message-group>summary:hover{background:var(--dsw-alias-interactive-bg-hover)}.lbs-browser-message-group[open]>summary{border-bottom:1px solid var(--dsw-alias-border-l1)}.lbs-browser-message-chevron{color:var(--dsw-alias-label-tertiary);font-size:16px;transform:rotate(0);transition:transform 120ms}.lbs-browser-message-group[open] .lbs-browser-message-chevron{transform:rotate(90deg)}.lbs-browser-message-body{display:flex;flex-direction:column;gap:8px;max-height:240px;overflow:auto;padding:8px}.lbs-browser-message-element{background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l1);border-radius:7px;padding:7px 8px}.lbs-browser-message-element-head{color:var(--dsw-alias-label-primary);font-size:11px;font-weight:600;line-height:15px;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-browser-message-row{display:grid;font-size:10px;gap:7px;grid-template-columns:48px minmax(0,1fr);line-height:15px}.lbs-browser-message-row>span{color:var(--dsw-alias-label-tertiary)}.lbs-browser-message-row code{color:var(--dsw-alias-label-secondary);font:10px/15px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;white-space:normal}@media(max-width:700px){.lbs-browser-context-label{display:none}.lbs-browser-context-composer{grid-template-columns:minmax(0,1fr)}.lbs-browser-message-group{width:min(360px,82vw)}}
     `;
     if (typeof document !== "undefined" && !document.querySelector('style[data-plugin-css="@laobos/dsh-file-attachments"]')) {
       const style = document.createElement("style");
@@ -30,19 +37,14 @@ window.__ModuleLoader__.load({
       document.head.append(style);
     }
 
-    const imageLabels = {
-      image: "图片",
-      open: "查看原图",
-      openNamed: (label) => `${label}，点击查看原图`,
-      loading: "图片加载中…",
-      loadFailed: "图片加载失败，点击重试",
-      lightbox: { dialog: "图片预览", close: "关闭图片预览" },
-    };
     const NATIVE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
     const EMPTY_FILES = Object.freeze([]);
+    const EMPTY_BROWSER_ELEMENTS = Object.freeze([]);
     const pendingFilesBySession = new Map();
     const pendingFileListeners = new Map();
+    const pendingBrowserElementsBySession = new Map();
+    const pendingBrowserElementListeners = new Map();
 
     function pendingFiles(sessionId) {
       return pendingFilesBySession.get(sessionId) || EMPTY_FILES;
@@ -96,6 +98,53 @@ window.__ModuleLoader__.load({
       return pendingFiles(sessionId);
     }
 
+    function pendingBrowserElements(sessionId) {
+      return pendingBrowserElementsBySession.get(sessionId) || EMPTY_BROWSER_ELEMENTS;
+    }
+
+    function publishPendingBrowserElements(sessionId) {
+      for (const listener of pendingBrowserElementListeners.get(sessionId) || []) listener();
+    }
+
+    function replacePendingBrowserElements(sessionId, elements) {
+      if (elements.length) pendingBrowserElementsBySession.set(sessionId, Object.freeze(elements));
+      else pendingBrowserElementsBySession.delete(sessionId);
+      publishPendingBrowserElements(sessionId);
+    }
+
+    function browserElementIdentity(element) {
+      const selector = element.element?.selector || "";
+      return selector ? `${element.page?.url || ""}\u0000${selector}` : element.id;
+    }
+
+    function addPendingBrowserElement(sessionId, value) {
+      const element = browserElementFromReference(value);
+      const identity = browserElementIdentity(element);
+      const next = pendingBrowserElements(sessionId).filter((candidate) => browserElementIdentity(candidate) !== identity);
+      next.push(element);
+      replacePendingBrowserElements(sessionId, next.slice(-6));
+    }
+
+    function removePendingBrowserElement(sessionId, target) {
+      const identity = browserElementIdentity(target);
+      replacePendingBrowserElements(sessionId, pendingBrowserElements(sessionId).filter((element) => browserElementIdentity(element) !== identity));
+    }
+
+    function usePendingBrowserElements(sessionId) {
+      const [, render] = useState(0);
+      useEffect(() => {
+        const listeners = pendingBrowserElementListeners.get(sessionId) || new Set();
+        const listener = () => render((version) => version + 1);
+        listeners.add(listener);
+        pendingBrowserElementListeners.set(sessionId, listeners);
+        return () => {
+          listeners.delete(listener);
+          if (!listeners.size) pendingBrowserElementListeners.delete(sessionId);
+        };
+      }, [sessionId]);
+      return pendingBrowserElements(sessionId);
+    }
+
     function selectedModelSupportsImages(ctx, sessionId) {
       try {
         const state = ctx.modelDirectories.directoryFor(sessionId).store.getSnapshot();
@@ -126,12 +175,29 @@ window.__ModuleLoader__.load({
       return (result?.files || []).map(fileFromReference);
     }
 
+    function installBrowserElementContextIngress(ctx) {
+      const receive = (event) => {
+        try {
+          const sessionId = typeof event.detail?.sessionId === "string" ? event.detail.sessionId : "";
+          const sessions = ctx.sessions.list.getSnapshot();
+          if (!sessionId || !sessions.byId?.[sessionId]) return;
+          addPendingBrowserElement(sessionId, event.detail.element);
+          event.preventDefault();
+        } catch {
+          // Leaving the cancelable event unhandled lets BrowserPanel show a useful error.
+        }
+      };
+      window.addEventListener("laobos:add-browser-element-context", receive);
+      return () => window.removeEventListener("laobos:add-browser-element-context", receive);
+    }
+
     function installFileSendChannel(ctx) {
       const conversation = ctx.get("conversation");
       if (!conversation?.sendSession) throw new Error("对话发送服务尚未就绪。 ");
       const original = conversation.sendSession;
-      const routed = async function routedSendSession(session, text, imageIds, mode) {
+      const routed = async function routedSendSession(session, text, imageIds, mode, signal) {
         const pending = pendingFiles(session.sessionId);
+        const pendingElements = pendingBrowserElements(session.sessionId);
         const downgradeImages = imageIds.length > 0
           && selectedModelSupportsImages(ctx, session.sessionId) !== true;
         const images = downgradeImages ? conversation.draftImages(imageIds) : [];
@@ -142,20 +208,40 @@ window.__ModuleLoader__.load({
           ? await persistImagesAsFiles(session.sessionId, images)
           : [];
         const files = [...pending, ...converted];
-        const envelopes = files.map(serializeFileEnvelope).join("\n\n");
+        const envelopes = [
+          ...files.map(serializeFileEnvelope),
+          ...pendingElements.map(serializeBrowserElementEnvelope),
+        ].join("\n\n");
         const prompt = text && envelopes ? `${text}\n\n${envelopes}` : text || envelopes;
         if (pending.length) {
           const sent = new Set(pending.map(fileIdentity));
           replacePendingFiles(session.sessionId, pendingFiles(session.sessionId).filter((file) => !sent.has(fileIdentity(file))));
         }
+        if (pendingElements.length) {
+          const sent = new Set(pendingElements.map(browserElementIdentity));
+          replacePendingBrowserElements(session.sessionId, pendingBrowserElements(session.sessionId).filter((element) => !sent.has(browserElementIdentity(element))));
+        }
         try {
-          await original.call(conversation, session, prompt, downgradeImages ? [] : imageIds, mode);
+          const outcome = await original.call(
+            conversation,
+            session,
+            prompt,
+            downgradeImages ? [] : imageIds,
+            mode,
+            signal,
+          );
           if (downgradeImages) conversation.releaseDraftImages(images);
+          return outcome;
         } catch (error) {
           if (pending.length) {
             const current = pendingFiles(session.sessionId);
             const currentIds = new Set(current.map(fileIdentity));
             replacePendingFiles(session.sessionId, [...pending.filter((file) => !currentIds.has(fileIdentity(file))), ...current]);
+          }
+          if (pendingElements.length) {
+            const current = pendingBrowserElements(session.sessionId);
+            const currentIds = new Set(current.map(browserElementIdentity));
+            replacePendingBrowserElements(session.sessionId, [...pendingElements.filter((element) => !currentIds.has(browserElementIdentity(element))), ...current]);
           }
           throw error;
         }
@@ -165,6 +251,8 @@ window.__ModuleLoader__.load({
         if (conversation.sendSession === routed) conversation.sendSession = original;
         pendingFilesBySession.clear();
         pendingFileListeners.clear();
+        pendingBrowserElementsBySession.clear();
+        pendingBrowserElementListeners.clear();
       };
     }
 
@@ -331,6 +419,24 @@ window.__ModuleLoader__.load({
       </svg>;
     }
 
+    function BrowserElementSvgIcon() {
+      return <span className="lbs-browser-context-icon" aria-hidden={true}>
+        <svg viewBox="0 0 20 20" fill="none" width="15" height="15">
+          <path d="M3.25 3.25h5.5v1.5h-4v4h-1.5zm8 0h5.5v5.5h-1.5v-4h-4zm4 8h1.5v5.5h-5.5v-1.5h4zm-12 0h1.5v4h4v1.5h-5.5z" fill="currentColor" />
+          <circle cx="10" cy="10" r="2.15" stroke="currentColor" strokeWidth="1.35" />
+        </svg>
+      </span>;
+    }
+
+    function browserContextHost(context) {
+      try { return new URL(context.page.url).host; }
+      catch { return context.page.url; }
+    }
+
+    function browserContextTag(context) {
+      return `<${context.element.tagName}>`;
+    }
+
     function FileCard({ file }) {
       const { status, copy } = useClipboardFeedback();
       const copyPath = async () => {
@@ -354,16 +460,30 @@ window.__ModuleLoader__.load({
 
     function FileComposerRail({ sessionId, input, inputActions }) {
       const files = usePendingFiles(sessionId);
+      const browserElements = usePendingBrowserElements(sessionId);
       const { conversation } = sessionInput(module.ctx, sessionId);
       const images = conversation.draftImages(input?.imageIds || []);
       const count = files.length + images.length;
-      if (!count) return null;
+      if (!count && !browserElements.length) return null;
       const removeImage = (image) => {
         conversation.releaseDraftImage(image.id);
         inputActions.removeImage(image.id);
       };
       return <div className="lbs-file-composer-zone">
-        <section className="lbs-file-composer-panel" aria-label="待发送附件">
+        {browserElements.length ? <section className="lbs-browser-context-composer" aria-label="待发送网页元素上下文">
+          <span className="lbs-browser-context-label">⌖ 网页上下文</span>
+          <div className="lbs-browser-context-rail">
+            {browserElements.map((element) => <article className="lbs-browser-context-item" key={browserElementIdentity(element)} title={`${element.element.selector}\n${element.page.url}`}>
+              <BrowserElementSvgIcon />
+              <span className="lbs-browser-context-main">
+                <span className="lbs-browser-context-name">{browserContextTag(element)} · {browserElementLabel(element)}</span>
+                <span className="lbs-browser-context-meta">{browserContextHost(element)}{element.element.source?.file ? ` · ${element.element.source.file}` : ""}</span>
+              </span>
+              <button className="lbs-file-composer-remove" type="button" aria-label={`移除网页元素 ${browserElementLabel(element)}`} onPointerDown={(event) => event.preventDefault()} onClick={() => removePendingBrowserElement(sessionId, element)}><CloseSvgIcon /></button>
+            </article>)}
+          </div>
+        </section> : null}
+        {count ? <section className="lbs-file-composer-panel" aria-label="待发送附件">
           <div className="lbs-file-composer-head"><span>附件</span><span className="lbs-file-composer-count">{count} 个</span></div>
           <div className="lbs-file-composer-rail">
             {images.map((image) => <article className="lbs-file-composer-item" key={image.id} title={image.file.name}>
@@ -383,7 +503,7 @@ window.__ModuleLoader__.load({
               <button className="lbs-file-composer-remove" type="button" aria-label={`移除文件 ${file.name}`} onPointerDown={(event) => event.preventDefault()} onClick={() => removePendingFile(sessionId, file)}><CloseSvgIcon /></button>
             </article>)}
           </div>
-        </section>
+        </section> : null}
       </div>;
     }
 
@@ -404,10 +524,51 @@ window.__ModuleLoader__.load({
       return parts;
     }
 
-    function MessageActions({ text, files, time }) {
+    function sourceLabel(source) {
+      if (!source?.file && !source?.component) return "";
+      const position = source.line ? `:${source.line}${source.column ? `:${source.column}` : ""}` : "";
+      return `${source.file || source.component}${position}${source.file && source.component ? ` · ${source.component}` : ""}`;
+    }
+
+    function BrowserElementGroup({ elements }) {
+      if (!elements.length) return null;
+      const primary = elements[0];
+      const summary = elements.length === 1 ? browserElementLabel(primary) : `${browserElementLabel(primary)} 等 ${elements.length} 个元素`;
+      return <details className="lbs-browser-message-group" data-laobos-browser-element-context={elements.length}>
+        <summary>
+          <BrowserElementSvgIcon />
+          <span className="lbs-browser-context-main">
+            <span className="lbs-browser-context-name">网页元素上下文 · {elements.length} 个</span>
+            <span className="lbs-browser-context-meta">{summary} · {browserContextHost(primary)}</span>
+          </span>
+          <span className="lbs-browser-message-chevron" aria-hidden={true}>›</span>
+        </summary>
+        <div className="lbs-browser-message-body">
+          {elements.map((context) => {
+            const source = sourceLabel(context.element.source);
+            const styles = Object.entries(context.element.styles).slice(0, 5).map(([name, value]) => `${name}: ${value}`).join("; ");
+            const size = `${Math.round(context.element.bounds.width)} × ${Math.round(context.element.bounds.height)}`;
+            return <article className="lbs-browser-message-element" key={`${browserElementIdentity(context)}:${context.id}`}>
+              <div className="lbs-browser-message-element-head">{browserContextTag(context)} · {browserElementLabel(context)}</div>
+              <div className="lbs-browser-message-row"><span>选择器</span><code>{context.element.selector || browserContextTag(context)}</code></div>
+              <div className="lbs-browser-message-row"><span>页面</span><code>{context.page.url}{context.page.queryKeys.length ? `?${context.page.queryKeys.join("&")}` : ""}</code></div>
+              {source ? <div className="lbs-browser-message-row"><span>源码</span><code>{source}</code></div> : null}
+              <div className="lbs-browser-message-row"><span>尺寸</span><code>{size}</code></div>
+              {styles ? <div className="lbs-browser-message-row"><span>样式</span><code>{styles}</code></div> : null}
+            </article>;
+          })}
+        </div>
+      </details>;
+    }
+
+    function MessageActions({ text, files, browserElements, time }) {
       const { status, copy: write } = useClipboardFeedback();
       const copy = async () => {
-        const value = [text, ...files.map((file) => file.path)].filter(Boolean).join("\n");
+        const value = [
+          text,
+          ...files.map((file) => file.path),
+          ...browserElements.map((context) => `网页元素 ${context.element.selector || browserContextTag(context)} · ${context.page.url}`),
+        ].filter(Boolean).join("\n");
         await write(value);
       };
       let displayTime = "";
@@ -421,7 +582,7 @@ window.__ModuleLoader__.load({
       </div>;
     }
 
-    function FileMessageNode({ node, loadImage }) {
+    function FileMessageNode({ node, renderMessageImages }) {
       const texts = [];
       const images = [];
       const rest = [];
@@ -430,21 +591,24 @@ window.__ModuleLoader__.load({
         else if (block?.type === "image" && block.attachment) images.push({ attachment: block.attachment });
         else rest.push(block);
       }
-      const parsed = parseFileEnvelopes(texts.join(""));
+      const fileProjection = parseFileEnvelopes(texts.join(""));
+      const parsed = parseBrowserElementEnvelopes(fileProjection.text);
       const showBubble = parsed.text !== "" || rest.length > 0;
       return <div className="lbs-file-user-row" data-time-hover-root={true}>
         <div className="lbs-file-user-stack">
-          <AttachmentUI.ImageGallery images={images} load={loadImage} align="end" labels={imageLabels} />
+          {images.length ? renderMessageImages({ images, align: "end" }) : null}
           {showBubble ? <div className="lbs-file-bubble">{projectedText(parsed.text)}{rest.map((block, index) => <div className="lbs-file-extra" key={index}><Primitives.JsonBlock label="附加内容" payload={block} truncatedLabel={(total) => `内容过长（${total} 项）`} /></div>)}</div> : null}
-          {parsed.files.length ? <div className="lbs-file-card-list">{parsed.files.map((file, index) => <FileCard file={file} key={`${file.id}:${index}`} />)}</div> : null}
+          {parsed.elements.length ? <BrowserElementGroup elements={parsed.elements} /> : null}
+          {fileProjection.files.length ? <div className="lbs-file-card-list">{fileProjection.files.map((file, index) => <FileCard file={file} key={`${file.id}:${index}`} />)}</div> : null}
         </div>
-        <MessageActions text={parsed.text} files={parsed.files} time={node?.data?.time} />
+        <MessageActions text={parsed.text} files={fileProjection.files} browserElements={parsed.elements} time={node?.data?.time} />
       </div>;
     }
 
     const inject = ["sessions", "slots", "conversation", "modelDirectories"];
     function apply(ctx) {
       module.ctx = ctx;
+      ctx.effect(() => installBrowserElementContextIngress(ctx), "laobos-file-attachments: browser element context ingress");
       ctx.effect(() => installFileSendChannel(ctx), "laobos-file-attachments: independent file send channel");
       ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
         name: "conversation.input.left",
@@ -456,7 +620,7 @@ window.__ModuleLoader__.load({
         name: "conversation.input.dock",
         id: "laobos-file-composer-rail",
         order: 30,
-        label: "待发送附件",
+        label: "待发送附件与网页上下文",
       }, FileComposerRail));
       for (const key of ["user", "steering"]) {
         ctx.slots.inject("conversation.chat.node", () => ctx.slots.register({

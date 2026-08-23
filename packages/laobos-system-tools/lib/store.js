@@ -58,7 +58,6 @@ export function normalizeImageUrls(value) {
       : [])
     .map((candidate) => String(candidate || "").trim())
     .filter(Boolean);
-  if (candidates.length > 12) fail("IMAGE_URLS_TOO_MANY", "每份知识资料最多添加 12 张图片。");
   const result = [];
   for (const candidate of candidates) {
     const text = candidate;
@@ -71,8 +70,57 @@ export function normalizeImageUrls(value) {
     }
     const normalized = url.toString();
     if (!result.includes(normalized)) result.push(normalized);
+    if (result.length > 12) fail("IMAGE_URLS_TOO_MANY", "每份知识资料最多添加 12 张图片。");
   }
   return result;
+}
+
+const MARKDOWN_IMAGE_PATTERN = /!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|([^\s)\r\n]+))(?:\s+(?:"[^"\r\n]*"|'[^'\r\n]*'|\([^\r\n)]*\)))?\s*\)/giu;
+
+export function extractMarkdownImageUrls(content) {
+  const urls = [];
+  for (const match of String(content || "").matchAll(MARKDOWN_IMAGE_PATTERN)) {
+    try {
+      const [url] = normalizeImageUrls([match[2] || match[3] || ""]);
+      if (url && !urls.includes(url)) urls.push(url);
+    } catch {
+      // Invalid and non-HTTP image destinations remain plain Markdown text.
+    }
+  }
+  return urls;
+}
+
+function markdownImageAlt(value) {
+  return String(value || "知识库图片").replace(/[\\\]]/gu, "\\$&");
+}
+
+export function sanitizeKnowledgeMarkdownImages(content) {
+  return String(content || "").replace(
+    MARKDOWN_IMAGE_PATTERN,
+    (_token, alt, angleDestination, plainDestination) => {
+      try {
+        const [url] = normalizeImageUrls([angleDestination || plainDestination || ""]);
+        return `![${alt || "知识库图片"}](<${url}>)`;
+      } catch {
+        return `图片：${String(alt || "无效地址").trim() || "无效地址"}`;
+      }
+    },
+  );
+}
+
+export function embedKnowledgeImages(content, imageUrls, title = "知识库图片") {
+  const text = sanitizeKnowledgeMarkdownImages(content).replace(/\r\n?/gu, "\n").trim();
+  const embedded = extractMarkdownImageUrls(text);
+  const images = normalizeImageUrls([...embedded, ...normalizeImageUrls(imageUrls)]);
+  const missing = images.filter((url) => !embedded.includes(url));
+  if (!missing.length) return { content: text, imageUrls: images };
+  const markdown = missing
+    .map((url, index) => `![${markdownImageAlt(`${title} 图片 ${embedded.length + index + 1}`)}](<${url}>)`)
+    .join("\n\n");
+  return {
+    content: text ? `${text}\n\n${markdown}` : markdown,
+    imageUrls: images,
+  };
 }
 
 function parseImageUrls(value) {
@@ -424,9 +472,10 @@ export class SystemToolsStore {
       LEFT JOIN knowledge_chunks k ON k.document_id=d.id WHERE d.id=? GROUP BY d.id
     `).get(id);
     if (!row) fail("DOCUMENT_NOT_FOUND", "文档不存在。", 404);
+    const embedded = embedKnowledgeImages(row.content, parseImageUrls(row.image_urls_json), row.title);
     return { id: row.id, revision: revision(row), collectionId: row.collection_id, title: row.title,
-      ...(row.source ? { source: row.source } : {}), imageUrls: parseImageUrls(row.image_urls_json), content: row.content,
-      contentLength: row.content_length, chunkCount: row.chunk_count,
+      ...(row.source ? { source: row.source } : {}), imageUrls: embedded.imageUrls, content: embedded.content,
+      contentLength: embedded.content.length, chunkCount: row.chunk_count,
       createdAt: row.created_at, updatedAt: row.updated_at };
   }
 
@@ -437,9 +486,15 @@ export class SystemToolsStore {
     const collectionId = identifier(input.collectionId, "知识库 ID");
     if (!this.listCollections().some((item) => item.id === collectionId)) fail("COLLECTION_NOT_FOUND", "知识库不存在。", 404);
     const title = nonEmpty(input.title, "文档标题", 240);
-    const content = nonEmpty(input.content, "文档内容", MAX_DOCUMENT_CHARACTERS);
+    const rawContent = nonEmpty(input.content, "文档内容", MAX_DOCUMENT_CHARACTERS);
     const source = String(input.source || "").trim().slice(0, 2000) || null;
-    const imageUrls = normalizeImageUrls(input.imageUrls ?? existing?.imageUrls ?? []);
+    const embedded = embedKnowledgeImages(
+      rawContent,
+      input.imageUrls ?? existing?.imageUrls ?? [],
+      title,
+    );
+    const content = nonEmpty(embedded.content, "文档内容", MAX_DOCUMENT_CHARACTERS);
+    const imageUrls = embedded.imageUrls;
     const chunks = splitDocument(content);
     const timestamp = now();
     this.transaction(() => {
@@ -531,12 +586,21 @@ export class SystemToolsStore {
       const context = this.database.prepare(`
         SELECT content FROM knowledge_chunks WHERE document_id=? AND ordinal BETWEEN ? AND ? ORDER BY ordinal
       `).all(row.document_id, Math.max(0, row.ordinal - 1), row.ordinal + 1);
+      const documentContent = this.database.prepare("SELECT content FROM knowledge_documents WHERE id=?").get(row.document_id)?.content || "";
+      const storedImageUrls = parseImageUrls(row.image_urls_json);
+      const inlineDocumentImageUrls = extractMarkdownImageUrls(documentContent);
+      const legacyImageUrls = storedImageUrls.filter((url) => !inlineDocumentImageUrls.includes(url));
+      const embedded = embedKnowledgeImages(
+        mergeOverlappingText(context.map((item) => item.content)),
+        legacyImageUrls,
+        row.title,
+      );
       return {
         chunkId: row.chunk_id, ordinal: row.ordinal, documentId: row.document_id,
         collectionId: row.collection_id, title: row.title,
         ...(row.source ? { source: row.source } : {}),
-        imageUrls: parseImageUrls(row.image_urls_json),
-        content: mergeOverlappingText(context.map((item) => item.content)),
+        imageUrls: embedded.imageUrls,
+        content: embedded.content,
         score: Number(row.score.toFixed(6)),
       };
     });

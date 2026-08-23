@@ -3,6 +3,10 @@ import { createRequire } from "node:module";
 import net from "node:net";
 import path from "node:path";
 import { boundedString } from "../ipc-security.mjs";
+import {
+  BROWSER_ELEMENT_HIGHLIGHT,
+  collectBrowserElementContext,
+} from "./browser-element-inspector.mjs";
 
 const BROWSEROPS_PORT = 57_321;
 const require = createRequire(import.meta.url);
@@ -21,11 +25,20 @@ export function registerBrowserIpc({
   let browserOpsState = { state: "stopped", message: "" };
   let navigationError = "";
   let currentAddress = "";
+  let inspectActive = false;
+  let inspectBusy = false;
+  let inspectError = "";
+  let inspectGeneration = 0;
+  let inspectDebugger;
+  let inspectMessageListener;
+  let inspectDetachListener;
+  let inspectCleanupPromise;
 
-  ipcMain.handle("laobos:browser:show", (event, input = {}) => {
+  ipcMain.handle("laobos:browser:show", async (event, input = {}) => {
     authorize(event);
     visible = input.visible === true;
     if (visible) ensureView();
+    else await stopElementInspect();
     syncVisibility();
     return browserState();
   });
@@ -45,6 +58,7 @@ export function registerBrowserIpc({
 
   ipcMain.handle("laobos:browser:navigate", async (event, input = {}) => {
     authorize(event);
+    await stopElementInspect();
     const url = normalizeBrowserUrl(input.url);
     currentAddress = url;
     navigationError = "";
@@ -57,14 +71,27 @@ export function registerBrowserIpc({
     return browserState();
   });
 
-  ipcMain.handle("laobos:browser:action", (event, input = {}) => {
+  ipcMain.handle("laobos:browser:action", async (event, input = {}) => {
     authorize(event);
+    await stopElementInspect();
     const contents = ensureView().webContents;
     const history = contents.navigationHistory;
     if (input.action === "back" && history.canGoBack()) history.goBack();
     else if (input.action === "forward" && history.canGoForward()) history.goForward();
     else if (input.action === "reload") contents.reload();
     else if (input.action === "stop") contents.stop();
+    return browserState();
+  });
+
+  ipcMain.handle("laobos:browser:inspect-start", async (event) => {
+    authorize(event);
+    await startElementInspect();
+    return browserState();
+  });
+
+  ipcMain.handle("laobos:browser:inspect-stop", async (event) => {
+    authorize(event);
+    await stopElementInspect();
     return browserState();
   });
 
@@ -165,6 +192,9 @@ export function registerBrowserIpc({
       try { normalizeBrowserUrl(url); } catch { event.preventDefault(); }
     });
     view.webContents.on("did-start-loading", () => { navigationError = ""; sendState(); });
+    view.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => {
+      if (isMainFrame) void stopElementInspect();
+    });
     view.webContents.on("did-stop-loading", sendState);
     view.webContents.on("did-navigate", (_event, url) => { if (!url.startsWith("data:")) currentAddress = url; sendState(); });
     view.webContents.on("did-navigate-in-page", (_event, url) => { currentAddress = url; sendState(); });
@@ -174,8 +204,139 @@ export function registerBrowserIpc({
       navigationError = friendlyNavigationError({ code: errorCode, message: errorDescription }, validatedURL || currentAddress);
       sendState();
     });
+    view.webContents.on("render-process-gone", () => { void stopElementInspect(); });
+    view.webContents.on("destroyed", () => { void stopElementInspect(); });
     syncVisibility();
     return view;
+  }
+
+  async function startElementInspect() {
+    if (inspectCleanupPromise) await inspectCleanupPromise;
+    if (inspectActive || inspectBusy) return;
+    const contents = ensureView().webContents;
+    if (!visible) throw new Error("请先打开内置浏览器，再点选网页元素。 ");
+    if (!currentAddress || contents.isLoading()) throw new Error("请等待网页加载完成后再点选元素。 ");
+    if (navigationError) throw new Error("当前页面加载失败，请先修正地址并重新打开。 ");
+    if (contents.isDevToolsOpened?.() || contents.debugger.isAttached()) {
+      throw new Error("页面调试器正被 DevTools 占用，请关闭 DevTools 后重试。 ");
+    }
+    inspectGeneration += 1;
+    inspectError = "";
+    inspectBusy = true;
+    sendState();
+    const generation = inspectGeneration;
+    const debuggerApi = contents.debugger;
+    try {
+      debuggerApi.attach("1.3");
+      inspectDebugger = debuggerApi;
+      inspectMessageListener = (_event, method, params = {}, sessionId) => {
+        if (method === "Overlay.inspectNodeRequested") {
+          void captureInspectedElement(params.backendNodeId, sessionId, generation);
+        } else if (method === "Overlay.inspectModeCanceled") {
+          void stopElementInspect();
+        }
+      };
+      inspectDetachListener = (_event, reason) => {
+        if (inspectDebugger !== debuggerApi) return;
+        inspectGeneration += 1;
+        removeInspectListeners(debuggerApi);
+        inspectDebugger = undefined;
+        inspectActive = false;
+        inspectBusy = false;
+        if (reason && reason !== "target closed") inspectError = "网页元素点选已结束，请重试。";
+        sendState();
+      };
+      debuggerApi.on("message", inspectMessageListener);
+      debuggerApi.on("detach", inspectDetachListener);
+      const command = (method, params = {}) => debuggerApi.sendCommand(method, params);
+      await command("DOM.enable");
+      await command("DOM.getDocument", { depth: 0, pierce: true });
+      await command("CSS.enable");
+      await command("Overlay.enable");
+      await command("Accessibility.enable");
+      await command("Runtime.enable");
+      await command("Overlay.setInspectMode", { mode: "searchForNode", highlightConfig: BROWSER_ELEMENT_HIGHLIGHT });
+      if (generation !== inspectGeneration) return;
+      inspectActive = true;
+      inspectBusy = false;
+      sendState();
+    } catch (error) {
+      if (generation !== inspectGeneration) return;
+      inspectError = friendlyInspectError(error);
+      await stopElementInspect({ preserveError: true });
+      throw new Error(inspectError);
+    }
+  }
+
+  async function captureInspectedElement(backendNodeId, sessionId, generation) {
+    if (!inspectActive || inspectBusy || generation !== inspectGeneration || !inspectDebugger) return;
+    inspectActive = false;
+    inspectBusy = true;
+    sendState();
+    const debuggerApi = inspectDebugger;
+    const command = (method, params = {}, targetSessionId) => debuggerApi.sendCommand(method, params, targetSessionId);
+    try {
+      await command("Overlay.setInspectMode", {
+        mode: "none",
+        highlightConfig: BROWSER_ELEMENT_HIGHLIGHT,
+      }, sessionId || undefined);
+      await command("Overlay.highlightNode", {
+        backendNodeId: Number(backendNodeId),
+        highlightConfig: BROWSER_ELEMENT_HIGHLIGHT,
+      }, sessionId || undefined).catch(() => {});
+      const element = await collectBrowserElementContext({
+        sendCommand: command,
+        backendNodeId: Number(backendNodeId),
+        sessionId,
+        fallbackPage: { url: currentAddress, title: contentsTitle() },
+      });
+      if (generation !== inspectGeneration || debuggerApi !== inspectDebugger) return;
+      sendElementSelected(element);
+    } catch (error) {
+      if (generation === inspectGeneration) inspectError = friendlyInspectError(error);
+    } finally {
+      if (generation === inspectGeneration) await stopElementInspect({ preserveError: Boolean(inspectError) });
+    }
+  }
+
+  function stopElementInspect({ preserveError = false } = {}) {
+    if (inspectCleanupPromise) return inspectCleanupPromise;
+    inspectCleanupPromise = (async () => {
+      inspectGeneration += 1;
+      inspectActive = false;
+      inspectBusy = false;
+      if (!preserveError) inspectError = "";
+      const debuggerApi = inspectDebugger;
+      inspectDebugger = undefined;
+      if (!debuggerApi) {
+        sendState();
+        return;
+      }
+      if (debuggerApi.isAttached()) {
+        for (const [method, params] of [
+          ["Overlay.setInspectMode", { mode: "none", highlightConfig: BROWSER_ELEMENT_HIGHLIGHT }],
+          ["Overlay.hideHighlight", {}],
+          ["Accessibility.disable", {}],
+          ["CSS.disable", {}],
+          ["Overlay.disable", {}],
+          ["DOM.disable", {}],
+          ["Runtime.disable", {}],
+        ]) {
+          try { await debuggerApi.sendCommand(method, params); } catch {}
+        }
+      }
+      removeInspectListeners(debuggerApi);
+      try { if (debuggerApi.isAttached()) debuggerApi.detach(); } catch {}
+      sendState();
+    })().finally(() => { inspectCleanupPromise = undefined; });
+    return inspectCleanupPromise;
+  }
+
+  function removeInspectListeners(debuggerApi) {
+    if (inspectMessageListener) debuggerApi.off("message", inspectMessageListener);
+    if (inspectDetachListener) debuggerApi.off("detach", inspectDetachListener);
+    inspectMessageListener = undefined;
+    inspectDetachListener = undefined;
   }
 
   function syncVisibility() {
@@ -195,6 +356,9 @@ export function registerBrowserIpc({
       loading: contents?.isLoading() || false,
       canGoBack: history?.canGoBack() || false,
       canGoForward: history?.canGoForward() || false,
+      inspecting: inspectActive,
+      inspectBusy,
+      inspectError,
     };
   }
 
@@ -208,7 +372,17 @@ export function registerBrowserIpc({
     if (window && !window.isDestroyed()) window.webContents.send("laobos:browserops:state", browserOpsState);
   }
 
+  function sendElementSelected(element) {
+    const window = getMainWindow();
+    if (window && !window.isDestroyed()) window.webContents.send("laobos:browser:element-selected", element);
+  }
+
+  function contentsTitle() {
+    return view && !view.webContents.isDestroyed() ? view.webContents.getTitle() : "";
+  }
+
   return () => {
+    void stopElementInspect();
     if (browserOpsChild) browserOpsChild.kill("SIGTERM");
     browserOpsChild = undefined;
     if (view) {
@@ -217,7 +391,7 @@ export function registerBrowserIpc({
       if (!view.webContents.isDestroyed()) view.webContents.close();
       view = undefined;
     }
-    for (const channel of ["laobos:browser:show", "laobos:browser:set-bounds", "laobos:browser:navigate", "laobos:browser:action", "laobos:browserops:status", "laobos:browserops:start", "laobos:browserops:stop"]) ipcMain.removeHandler(channel);
+    for (const channel of ["laobos:browser:show", "laobos:browser:set-bounds", "laobos:browser:navigate", "laobos:browser:action", "laobos:browser:inspect-start", "laobos:browser:inspect-stop", "laobos:browserops:status", "laobos:browserops:start", "laobos:browserops:stop"]) ipcMain.removeHandler(channel);
   };
 }
 
@@ -240,6 +414,16 @@ export function friendlyNavigationError(error, url) {
   if (Number(error?.code) === -105 || /ERR_NAME_NOT_RESOLVED/iu.test(message)) return `找不到 ${target}，请检查地址是否正确。`;
   if (Number(error?.code) === -106 || /ERR_INTERNET_DISCONNECTED/iu.test(message)) return "当前网络不可用，请检查网络连接。";
   return `页面加载失败：${message.replace(/^Error:\s*/u, "") || "未知错误"}`;
+}
+
+export function friendlyInspectError(error) {
+  const message = String(error?.message || error || "").replace(/^Error:\s*/u, "");
+  if (/Another debugger is already attached|DevTools|already attached/iu.test(message)) {
+    return "页面调试器正被 DevTools 占用，请关闭 DevTools 后重试。";
+  }
+  if (/highlight configuration parameter is missing/iu.test(message)) return "网页元素高亮配置无效，请重新点选。";
+  if (/Could not find node|No node with given id|元素已经/iu.test(message)) return "选中的网页元素已经变化，请重新选择。";
+  return message || "无法点选网页元素，请重试。";
 }
 
 export function resolveBrowserOpsDaemon(appPath) {

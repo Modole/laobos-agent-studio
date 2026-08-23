@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 
 import { build } from "esbuild";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const entries = [
+  ["packages/laobos-performance/src/client.jsx", "packages/laobos-performance/lib/client.js"],
+  ["packages/laobos-context-window/src/client.jsx", "packages/laobos-context-window/lib/client.js"],
+  ["packages/laobos-platform-bridge/src/client.js", "packages/laobos-platform-bridge/lib/client.js"],
   ["packages/laobos-shell/src/client.jsx", "packages/laobos-shell/lib/client.js"],
   ["packages/laobos-file-attachments/src/client.jsx", "packages/laobos-file-attachments/lib/client.js"],
   ["packages/laobos-workspace-tools/src/client.jsx", "packages/laobos-workspace-tools/lib/client.js"],
@@ -17,9 +21,10 @@ const entries = [
 ];
 
 for (const [entry, output] of entries) {
+  const outputPath = path.join(root, output);
   await build({
     entryPoints: [path.join(root, entry)],
-    outfile: path.join(root, output),
+    outfile: outputPath,
     bundle: true,
     format: "iife",
     platform: "browser",
@@ -33,10 +38,21 @@ for (const [entry, output] of entries) {
     jsxFragment: "React.Fragment",
     tsconfigRaw: { compilerOptions: { jsx: "react" } },
     loader: { ".css": "text" },
-    banner: {
-      js: "/* eslint-disable @next/next/no-assign-module-variable -- generated DSH module factory */",
-    },
+    ...(entry.includes("laobos-performance") ? {
+      define: { "process.env.NODE_ENV": '"production"' },
+    } : {}),
+    ...(entry.includes("laobos-platform-bridge") ? {} : {
+      banner: {
+        js: entry.includes("laobos-workspace-tools")
+          ? "/* eslint-disable @next/next/no-assign-module-variable, @typescript-eslint/no-this-alias -- generated DSH module factory */"
+          : "/* eslint-disable @next/next/no-assign-module-variable -- generated DSH module factory */",
+      },
+    }),
     legalComments: "none",
     sourcemap: false,
   });
+
+  const generated = await readFile(outputPath, "utf8");
+  const normalized = generated.replace(/[\t ]+$/gmu, "");
+  if (normalized !== generated) await writeFile(outputPath, normalized);
 }

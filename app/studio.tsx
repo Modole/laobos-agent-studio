@@ -2434,7 +2434,15 @@ export function PiStudio({ mode = "studio" }: { mode?: StudioMode }) {
         ) : null}
 
         {view === "knowledge" ? (
-		  <KnowledgeBase apiFetch={apiFetch} connected={connected} onNotify={showToast} refreshVersion={resourceRefreshVersion} />
+		  <KnowledgeBase
+			apiFetch={apiFetch}
+			connected={connected}
+			onNotify={showToast}
+			refreshVersion={resourceRefreshVersion}
+			renderMarkdown={(text) => (
+			  <MarkdownText text={text} loadLocalImage={loadMarkdownImage} />
+			)}
+		  />
         ) : null}
 
         {view === "prompt" ? (

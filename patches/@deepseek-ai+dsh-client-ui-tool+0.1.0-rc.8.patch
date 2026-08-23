@@ -1,0 +1,58 @@
+diff --git a/node_modules/@deepseek-ai/dsh-client-ui-tool/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-tool/lib/client.js
+index a9eadb3..6ecaba6 100644
+--- a/node_modules/@deepseek-ai/dsh-client-ui-tool/lib/client.js
++++ b/node_modules/@deepseek-ai/dsh-client-ui-tool/lib/client.js
+@@ -316,6 +316,37 @@ window.__ModuleLoader__.load({
+ 			const diffs = result === null ? null : narrowDiffs(result.diffs);
+ 			return diffs === null ? null : { card: { diffs } };
+ 		}
++		/** Count the visible before/after lines using the same empty/trailing-newline
++		*  convention as DiffBlock's own footer. */
++		function diffTextLineCount(text) {
++			if (text === "") return 0;
++			const body = text.endsWith("\n") ? text.slice(0, -1) : text;
++			return body.split("\n").length;
++		}
++		/** Compact settled diff totals for the non-ellipsized tool-row suffix. */
++		function diffSummarySuffix(diff) {
++			if (diff === null) return null;
++			let additions = 0;
++			let deletions = 0;
++			for (const hunk of diff.card.diffs) {
++				additions += diffTextLineCount(hunk.newText);
++				if (hunk.oldText !== null) deletions += diffTextLineCount(hunk.oldText);
++			}
++			if (additions === 0 && deletions === 0) return null;
++			return (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
++				(0, react_jsx_runtime.jsx)("span", {
++					"data-diff-additions": true,
++					style: { color: "var(--dsw-alias-state-success-primary)" },
++					children: `+${additions}`
++				}),
++				" ",
++				(0, react_jsx_runtime.jsx)("span", {
++					"data-diff-deletions": true,
++					style: { color: "var(--dsw-alias-state-error-primary)" },
++					children: `-${deletions}`
++				})
++			] });
++		}
+ 		//#endregion
+ 		//#region lib/types/client/tool/models/search-card-model.js
+ 		/**
+@@ -1314,6 +1345,7 @@ window.__ModuleLoader__.load({
+ 		function FileMutationRow({ toolName, block, cwd, home, openFile, inspect, t }) {
+ 			const model = toolRowModel(toolName, block, cwd, home);
+ 			const diff = diffCardModel(block);
++			const summarySuffix = model.state === "ok" ? diffSummarySuffix(diff) : null;
+ 			return (0, react_jsx_runtime.jsx)(ToolRow, {
+ 				t,
+ 				variant: model.variant,
+@@ -1321,6 +1353,7 @@ window.__ModuleLoader__.load({
+ 				icon: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, { size: 14 }),
+ 				title: model.title,
+ 				summary: model.summary,
++				summarySuffix,
+ 				body: null,
+ 				output: model.output,
+ 				errorSummary: model.errorSummary,

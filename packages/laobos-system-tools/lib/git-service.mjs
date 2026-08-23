@@ -67,7 +67,8 @@ export async function resolveGitExecutable({
   return "git";
 }
 
-export async function inspectGit(root) {
+export async function inspectGit(root, { commitLimit = 50 } = {}) {
+  const boundedCommitLimit = Math.min(500, Math.max(1, Number(commitLimit) || 50));
   const context = await resolveRepository(root, { allowMissing: true });
   if (!context.repository) {
     return {
@@ -85,7 +86,7 @@ export async function inspectGit(root) {
       remotes: [],
     };
   }
-  return inspectResolved(context.repository);
+  return inspectResolved(context.repository, boundedCommitLimit);
 }
 
 export async function diffGit(root, input = {}) {
@@ -93,12 +94,14 @@ export async function diffGit(root, input = {}) {
   const filePath = input.path === undefined ? undefined : safeRelativePath(input.path);
   const side = input.side || (input.staged ? "staged" : "unstaged");
   let args;
+  let files;
   let acceptedExitCodes = [0];
 
   if (side === "commit") {
     const ref = safeRef(input.ref);
     args = ["show", "--format=fuller", "--no-ext-diff", "--no-color", "--stat", "--patch", ref];
     if (filePath) args.push("--", filePath);
+    else files = await listCommitFiles(repository, ref);
   } else if (side === "untracked") {
     if (!filePath) throw new GitServiceError("PATH_REQUIRED", "查看未跟踪文件必须提供路径。");
     const state = await inspectResolved(repository);
@@ -115,7 +118,116 @@ export async function diffGit(root, input = {}) {
   }
 
   const result = await runGit(repository, args, { acceptedExitCodes });
-  return { diff: result.stdout, side, path: filePath || null };
+  return { diff: result.stdout, side, path: filePath || null, ...(files === undefined ? {} : { files }) };
+}
+
+async function listCommitFiles(repository, ref) {
+  const result = await runGit(repository, ["diff-tree", "--root", "--no-commit-id", "--name-status", "-r", "-z", "-M", ref]);
+  const records = result.stdout.split("\0").filter(Boolean);
+  const files = [];
+  for (let index = 0; index < records.length;) {
+    const rawStatus = records[index++] || "";
+    const status = rawStatus[0] || "M";
+    if (status === "R" || status === "C") {
+      const originalPath = records[index++] || "";
+      const filePath = records[index++] || "";
+      if (filePath) files.push({ path: filePath, originalPath, status });
+      continue;
+    }
+    const filePath = records[index++] || "";
+    if (filePath) files.push({ path: filePath, status });
+  }
+  return files;
+}
+
+/**
+ * Summarize the current Git diff for a bounded, caller-supplied set of files.
+ *
+ * The caller is expected to pass turn-local mutation paths. Unrequested paths
+ * are omitted; attribution is path-level, not hunk-level.
+ */
+export async function summarizeGitChanges(root, input = {}) {
+  return summarizeGitChangesAttempt(root, input, 0);
+}
+
+async function summarizeGitChangesAttempt(root, input, attempt) {
+  const requestedPaths = safePaths(input.paths);
+  const context = await resolveRepository(root, { allowMissing: true });
+  if (!context.repository) {
+    return {
+      isRepository: false,
+      root: context.cwd,
+      statusToken: null,
+      files: [],
+      additions: 0,
+      deletions: 0,
+    };
+  }
+
+  const state = await gitStatusResolved(context.repository);
+  const changes = new Map(state.changes.map((change) => [gitPathKey(change.path), change]));
+  for (const change of state.changes) {
+    if (change.originalPath && !changes.has(gitPathKey(change.originalPath))) changes.set(gitPathKey(change.originalPath), change);
+  }
+  const selected = requestedPaths
+    .map((filePath) => changes.get(gitPathKey(filePath)))
+    .filter((change, index, values) => change && values.indexOf(change) === index);
+  const files = new Array(selected.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < selected.length) {
+      const index = cursor;
+      cursor += 1;
+      const change = selected[index];
+      let stats;
+      try {
+        stats = await numstatForChange(context.repository, state.head, change);
+      } catch (error) {
+        if (!(error instanceof GitServiceError)) throw error;
+        stats = { additions: 0, deletions: 0, binary: false, statsAvailable: false };
+      }
+      files[index] = {
+        path: change.path,
+        originalPath: change.originalPath,
+        staged: change.staged,
+        unstaged: change.unstaged,
+        untracked: change.untracked,
+        conflict: change.conflict,
+        side: change.untracked ? "untracked" : change.unstaged ? "unstaged" : "staged",
+        ...stats,
+      };
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(8, selected.length) }, worker));
+
+  const verified = await gitStatusResolved(context.repository);
+  const stale = verified.statusToken !== state.statusToken || verified.head !== state.head;
+  if (stale && attempt === 0) return summarizeGitChangesAttempt(root, input, 1);
+
+  return {
+    isRepository: true,
+    root: context.repository,
+    statusToken: state.statusToken,
+    files,
+    additions: files.reduce((total, file) => total + file.additions, 0),
+    deletions: files.reduce((total, file) => total + file.deletions, 0),
+    stale,
+  };
+}
+
+export function parseGitNumstat(output) {
+  let additions = 0;
+  let deletions = 0;
+  let binary = false;
+  for (const match of String(output || "").matchAll(/(?:^|\0)(-|\d+)\t(-|\d+)\t/gu)) {
+    if (match[1] === "-" || match[2] === "-") {
+      binary = true;
+      continue;
+    }
+    additions += Number(match[1]);
+    deletions += Number(match[2]);
+  }
+  return { additions, deletions, binary, statsAvailable: true };
 }
 
 export async function initializeGit(root, input = {}) {
@@ -272,11 +384,10 @@ export function parseGitStatusV1(output) {
   return { branch, changes };
 }
 
-async function inspectResolved(repository) {
-  const statusResult = await runGit(repository, ["status", "--porcelain=v2", "--branch", "--untracked-files=all", "-z"]);
-  const status = parseGitStatusV2(statusResult.stdout);
+async function inspectResolved(repository, commitLimit = 50) {
+  const status = await gitStatusResolved(repository);
   const [commits, branches, remoteLines] = await Promise.all([
-    status.head ? gitLog(repository, 50) : [],
+    status.head ? gitLog(repository, commitLimit) : [],
     gitBranches(repository),
     runGit(repository, ["remote"], { acceptedExitCodes: [0] }).then((result) => result.stdout.split(/\r?\n/u).filter(Boolean)),
   ]);
@@ -284,11 +395,43 @@ async function inspectResolved(repository) {
     isRepository: true,
     root: repository,
     ...status,
-    statusToken: createHash("sha256").update(statusResult.stdout).digest("hex"),
     commits,
     branches,
     remotes: remoteLines,
   };
+}
+
+async function gitStatusResolved(repository) {
+  const result = await runGit(repository, ["status", "--porcelain=v2", "--branch", "--untracked-files=all", "-z"]);
+  return {
+    ...parseGitStatusV2(result.stdout),
+    statusToken: createHash("sha256").update(result.stdout).digest("hex"),
+  };
+}
+
+async function numstatForChange(repository, head, change) {
+  let result;
+  if (change.untracked) {
+    result = await runGit(repository, ["diff", "--no-index", "--no-ext-diff", "--no-color", "--numstat", "-z", "--", "/dev/null", change.path], { acceptedExitCodes: [0, 1] });
+  } else if (head) {
+    const pathspecs = [...new Set([change.path, change.originalPath].filter(Boolean))];
+    result = await runGit(repository, ["diff", "--no-ext-diff", "--no-color", "--numstat", "-z", head, "--", ...pathspecs]);
+  } else {
+    let exists = true;
+    try {
+      await access(path.join(repository, change.path));
+    } catch {
+      exists = false;
+    }
+    if (exists) {
+      result = await runGit(repository, ["diff", "--no-index", "--no-ext-diff", "--no-color", "--numstat", "-z", "--", "/dev/null", change.path], { acceptedExitCodes: [0, 1] });
+    } else if (change.staged) {
+      result = await runGit(repository, ["diff", "--cached", "--no-ext-diff", "--no-color", "--numstat", "-z", "--", change.path]);
+    } else {
+      return { additions: 0, deletions: 0, binary: false, statsAvailable: true };
+    }
+  }
+  return parseGitNumstat(result.stdout);
 }
 
 async function gitLog(repository, limit) {
@@ -372,6 +515,11 @@ function safeRelativePath(value) {
     throw new GitServiceError("PATH_INVALID", "Git 文件路径无效。");
   }
   return text;
+}
+
+function gitPathKey(value) {
+  const normalized = String(value).replaceAll("\\", "/");
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
 function safeBranch(value) {

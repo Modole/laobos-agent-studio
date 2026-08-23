@@ -1,0 +1,33 @@
+diff --git a/node_modules/@deepseek-ai/node-addon-landlock-run/lib/index.js b/node_modules/@deepseek-ai/node-addon-landlock-run/lib/index.js
+index 92f3c4b..257eebf 100644
+--- a/node_modules/@deepseek-ai/node-addon-landlock-run/lib/index.js
++++ b/node_modules/@deepseek-ai/node-addon-landlock-run/lib/index.js
+@@ -17,6 +17,10 @@ import { spawnSync } from 'node:child_process';
+ import { createRequire } from 'node:module';
+ import { dirname, join } from 'node:path';
+ import { fileURLToPath } from 'node:url';
++
++function physicalAsarPath(filePath) {
++    return filePath.replace(/\.asar([\\/])/u, '.asar.unpacked$1');
++}
+ /** The launcher binary's file name inside each platform package's `bin/`. */
+ export const LAUNCHER_BIN = 'landlock-run';
+ /**
+@@ -45,7 +49,7 @@ export const LAUNCHER_FAILURE_EXIT = 125;
+ export function launcherPath(resolvePackageJson = createRequire(import.meta.url).resolve) {
+     const platformPackage = `@deepseek-ai/node-addon-landlock-run-${process.platform}-${process.arch}`;
+     try {
+-        return join(dirname(resolvePackageJson(`${platformPackage}/package.json`)), 'bin', LAUNCHER_BIN);
++        return physicalAsarPath(join(dirname(resolvePackageJson(`${platformPackage}/package.json`)), 'bin', LAUNCHER_BIN));
+     }
+     catch {
+         // Unresolvable platform package: no such package exists for this host, or
+@@ -53,7 +57,7 @@ export function launcherPath(resolvePackageJson = createRequire(import.meta.url)
+         // absolute, inside this package's boundary (never cwd-relative: a
+         // spawnable relative path here would hand cwd control over which binary
+         // confines), and nonexistent exactly when the package is absent.
+-        return fileURLToPath(new URL(`../node_modules/${platformPackage}/bin/${LAUNCHER_BIN}`, import.meta.url));
++        return physicalAsarPath(fileURLToPath(new URL(`../node_modules/${platformPackage}/bin/${LAUNCHER_BIN}`, import.meta.url)));
+     }
+ }
+ /**

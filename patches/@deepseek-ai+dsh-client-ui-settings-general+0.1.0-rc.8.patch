@@ -1,0 +1,107 @@
+diff --git a/node_modules/@deepseek-ai/dsh-client-ui-settings-general/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-settings-general/lib/client.js
+index 59d0180..de8571e 100644
+--- a/node_modules/@deepseek-ai/dsh-client-ui-settings-general/lib/client.js
++++ b/node_modules/@deepseek-ai/dsh-client-ui-settings-general/lib/client.js
+@@ -25,7 +25,7 @@ window.__ModuleLoader__.load({
+ 		}
+ 		//#endregion
+ 		//#region \0dsh-css:/home/runner/work/deepseek-harness/deepseek-harness/packages/client/ui-settings-general/src/client/SettingsRoot.module.css.mjs
+-		const css$3 = ".VOzbGW_trigger{box-sizing:border-box;cursor:pointer;width:calc(100% + 4px);height:42px;color:var(--dsw-alias-label-primary);background:0 0;border:none;border-radius:12px;flex:none;align-items:center;gap:8px;margin:4px -2px;padding:0 10px 0 8px;font-family:inherit;font-size:14px;line-height:22px;display:flex;overflow:hidden}.VOzbGW_trigger:hover{background:var(--dsw-alias-interactive-bg-hover)}.VOzbGW_trigger.VOzbGW_rail{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;margin:8px 0 10px;padding:0}.VOzbGW_triggerLabel{white-space:nowrap;overflow:hidden}.VOzbGW_overlay{z-index:1000;justify-content:center;align-items:center;display:flex;position:fixed;inset:0}.VOzbGW_mask{background:var(--dsw-alias-bg-mask-1);backdrop-filter:var(--dsw-mask-blur);position:absolute;inset:0}.VOzbGW_panel{z-index:1;background:var(--dsw-alias-bg-layer-2);width:800px;max-width:calc(100vw - 48px);height:min(800px,100vh - 48px);box-shadow:var(--dsw-shadow-lv3);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);border-radius:24px;display:flex;position:relative;overflow:hidden}.VOzbGW_nav{box-sizing:border-box;flex-direction:column;flex:none;gap:18px;width:188px;padding:22px 12px 0;display:flex}.VOzbGW_navTitle{color:var(--dsw-alias-label-primary);padding:0 12px;font-size:16px;font-weight:500;line-height:24px}.VOzbGW_navList{flex-direction:column;gap:4px;display:flex}.VOzbGW_navCell{box-sizing:border-box;cursor:pointer;height:40px;color:var(--dsw-alias-label-primary);text-align:left;background:0 0;border:none;border-radius:12px;align-items:center;gap:8px;padding:9px 16px 9px 12px;font-family:inherit;font-size:14px;font-weight:400;line-height:22px;display:flex}.VOzbGW_navCell:hover{background:var(--dsw-specific-sidebar-nav-item-hover)}.VOzbGW_navCell.VOzbGW_active{background:var(--dsw-specific-sidebar-nav-item-active)}.VOzbGW_navIcon{flex:none}.VOzbGW_navLabel{white-space:nowrap;text-overflow:ellipsis;flex:1;min-width:0;overflow:hidden}.VOzbGW_content{flex-direction:column;flex:1;min-width:0;display:flex}.VOzbGW_header{box-sizing:border-box;flex:none;justify-content:space-between;align-items:flex-start;gap:8px;height:54px;padding:20px 14px 8px 10px;display:flex}.VOzbGW_actions{justify-content:flex-end;align-items:center;gap:8px;min-width:0;margin-left:auto;display:flex}.VOzbGW_close{cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-primary);background:0 0;border:none;border-radius:28px;justify-content:center;align-items:center;padding:0;display:inline-flex}.VOzbGW_close:hover{background:var(--dsw-alias-interactive-bg-hover)}.VOzbGW_options{flex:1;min-height:0;padding:0 24px 24px;overflow-y:auto}.VOzbGW_hiddenLabel{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}";
++		const css$3 = ".VOzbGW_trigger{box-sizing:border-box;cursor:pointer;width:calc(100% + 4px);height:42px;color:var(--dsw-alias-label-primary);background:0 0;border:none;border-radius:12px;flex:none;align-items:center;gap:8px;margin:4px -2px;padding:0 10px 0 8px;font-family:inherit;font-size:14px;line-height:22px;display:flex;overflow:hidden}.VOzbGW_trigger:hover{background:var(--dsw-alias-interactive-bg-hover)}.VOzbGW_trigger.VOzbGW_rail{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;margin:8px 0 10px;padding:0}.VOzbGW_triggerLabel{white-space:nowrap;overflow:hidden}.VOzbGW_overlay{z-index:1000;justify-content:center;align-items:center;display:flex;position:fixed;inset:0}.VOzbGW_overlay[data-open=false]{display:none}.VOzbGW_mask{background:var(--dsw-alias-bg-mask-1);backdrop-filter:var(--dsw-mask-blur);position:absolute;inset:0}.VOzbGW_panel{z-index:1;background:var(--dsw-alias-bg-layer-2);width:800px;max-width:calc(100vw - 48px);height:min(800px,100vh - 48px);box-shadow:var(--dsw-shadow-lv3);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);border-radius:24px;display:flex;position:relative;overflow:hidden}.VOzbGW_nav{box-sizing:border-box;flex-direction:column;flex:none;gap:18px;width:188px;padding:22px 12px 0;display:flex}.VOzbGW_navTitle{color:var(--dsw-alias-label-primary);padding:0 12px;font-size:16px;font-weight:500;line-height:24px}.VOzbGW_navList{flex-direction:column;gap:4px;display:flex}.VOzbGW_navCell{box-sizing:border-box;cursor:pointer;height:40px;color:var(--dsw-alias-label-primary);text-align:left;background:0 0;border:none;border-radius:12px;align-items:center;gap:8px;padding:9px 16px 9px 12px;font-family:inherit;font-size:14px;font-weight:400;line-height:22px;display:flex}.VOzbGW_navCell:hover{background:var(--dsw-specific-sidebar-nav-item-hover)}.VOzbGW_navCell.VOzbGW_active{background:var(--dsw-specific-sidebar-nav-item-active)}.VOzbGW_navIcon{flex:none}.VOzbGW_navLabel{white-space:nowrap;text-overflow:ellipsis;flex:1;min-width:0;overflow:hidden}.VOzbGW_content{flex-direction:column;flex:1;min-width:0;display:flex}.VOzbGW_header{box-sizing:border-box;flex:none;justify-content:space-between;align-items:flex-start;gap:8px;height:54px;padding:20px 14px 8px 10px;display:flex}.VOzbGW_actions{justify-content:flex-end;align-items:center;gap:8px;min-width:0;margin-left:auto;display:flex}.VOzbGW_close{cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-primary);background:0 0;border:none;border-radius:28px;justify-content:center;align-items:center;padding:0;display:inline-flex}.VOzbGW_close:hover{background:var(--dsw-alias-interactive-bg-hover)}.VOzbGW_options{flex:1;min-height:0;padding:0 24px 24px;overflow-y:auto}.VOzbGW_hiddenLabel{clip:rect(0 0 0 0);white-space:nowrap;width:1px;height:1px;position:absolute;overflow:hidden}";
+ 		const tagId$3 = "@deepseek-ai/dsh-client-ui-settings-general/SettingsRoot.module.css";
+ 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId$3) + "]") === null) {
+ 			const tag = document.createElement("style");
+@@ -93,10 +93,19 @@ window.__ModuleLoader__.load({
+ 		* header button, a mask click, and document-level Escape (mounted only while
+ 		* open, so the listener lifetime is the panel's).
+ 		*/
+-		function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }) {
++		function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose, open }) {
+ 			const active = rows.find((r) => r.id === activeId)?.id ?? rows[0]?.id;
++			const [visitedIds, setVisitedIds] = (0, react.useState)(() => /* @__PURE__ */ new Set());
++			(0, react.useEffect)(() => {
++				if (active === void 0) return;
++				setVisitedIds((previous) => {
++					if (previous.has(active)) return previous;
++					return new Set([...previous, active]);
++				});
++			}, [active]);
+ 			const titleId = (0, react.useId)();
+ 			(0, react.useEffect)(() => {
++				if (!open) return;
+ 				const onKeyDown = (e) => {
+ 					if (e.key === "Escape") onClose();
+ 				};
+@@ -104,13 +113,15 @@ window.__ModuleLoader__.load({
+ 				return () => {
+ 					document.removeEventListener("keydown", onKeyDown);
+ 				};
+-			}, [onClose]);
++			}, [onClose, open]);
+ 			const closeButton = (0, react.useRef)(null);
+ 			(0, react.useEffect)(() => {
+-				closeButton.current?.focus();
+-			}, []);
++				if (open) closeButton.current?.focus();
++			}, [open]);
+ 			return (0, react_jsx_runtime.jsxs)("div", {
+ 				className: SettingsRoot_module_css_default.overlay,
++				"data-open": open,
++				"aria-hidden": !open,
+ 				role: "presentation",
+ 				children: [(0, react_jsx_runtime.jsx)("div", {
+ 					className: SettingsRoot_module_css_default.mask,
+@@ -161,7 +172,14 @@ window.__ModuleLoader__.load({
+ 							})]
+ 						}), (0, react_jsx_runtime.jsx)("div", {
+ 							className: SettingsRoot_module_css_default.options,
+-							children: active !== void 0 && renderSlot("settings.section", { close: onClose }, { only: active })
++							children: rows.filter((row) => row.id === active || visitedIds.has(row.id)).map((row) => {
++								const selected = row.id === active;
++								return (0, react_jsx_runtime.jsx)("div", {
++									hidden: !selected,
++									"aria-hidden": !selected,
++									children: renderSlot("settings.section", { close: onClose }, { only: row.id })
++								}, row.id);
++							})
+ 						})]
+ 					})]
+ 				})]
+@@ -175,14 +193,15 @@ window.__ModuleLoader__.load({
+ 		function SettingsRoot(props) {
+ 			const { wide, useSections, useOnboardingSteps, useSessions, renderSlot } = props;
+ 			const [open, setOpen] = (0, react.useState)(false);
++			const [hasOpened, setHasOpened] = (0, react.useState)(false);
+ 			const [activeId, setActiveId] = (0, react.useState)(void 0);
+ 			const [completedOnboarding, setCompletedOnboarding] = (0, react.useState)(() => /* @__PURE__ */ new Set());
+ 			const close = (0, react.useCallback)(() => {
+ 				setOpen(false);
+-				setActiveId(void 0);
+ 			}, []);
+ 			const openSection = (0, react.useCallback)((id) => {
+ 				setActiveId(id);
++				setHasOpened(true);
+ 				setOpen(true);
+ 			}, []);
+ 			const rows = useSections((s) => s);
+@@ -206,16 +225,18 @@ window.__ModuleLoader__.load({
+ 					"aria-haspopup": "dialog",
+ 					"aria-expanded": open,
+ 					onClick: () => {
++						setHasOpened(true);
+ 						setOpen(true);
+ 					},
+ 					children: renderSlot("settings.trigger", { wide })
+ 				}),
+-				open && (0, react_jsx_runtime.jsx)(SettingsPanel, {
++				hasOpened && (0, react_jsx_runtime.jsx)(SettingsPanel, {
+ 					rows,
+ 					renderSlot,
+ 					activeId,
+ 					onSelect: setActiveId,
+-					onClose: close
++					onClose: close,
++					open
+ 				}),
+ 				onboardingStep !== void 0 && renderSlot("settings.onboarding", {
+ 					stepId: onboardingStep.id,

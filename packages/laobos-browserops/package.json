@@ -5,6 +5,6 @@
   "private": true,
   "type": "module",
   "main": "lib/index.js",
-  "exports": { ".": "./lib/index.js", "./client": "./lib/client.js", "./package.json": "./package.json" },
+  "exports": { ".": "./lib/index.js", "./client": "./lib/client.js", "./conversation-link": "./lib/conversation-link.js", "./element-envelope": "./lib/element-envelope.js", "./package.json": "./package.json" },
   "dsh": { "client": { "inject": ["@deepseek-ai/dsh-client-runtime"], "platform": "web" } }
 }

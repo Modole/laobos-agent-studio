@@ -3,6 +3,7 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractFile } from "@electron/asar";
 
 const WINDOWS_X64_NATIVE_FILES = [
   [
@@ -56,6 +57,49 @@ async function exists(target) {
   }
 }
 
+export async function verifyKoffiNativeVersion(resourcesDirectoryInput) {
+  const resourcesDirectory = path.resolve(resourcesDirectoryInput);
+  const appArchive = path.join(resourcesDirectory, "app.asar");
+  const nativeManifestPath = path.join(
+    resourcesDirectory,
+    "app.asar.unpacked",
+    "node_modules",
+    "@koromix",
+    "koffi-win32-x64",
+    "package.json",
+  );
+
+  let koffiManifest;
+  try {
+    koffiManifest = JSON.parse(
+      extractFile(appArchive, "node_modules/koffi/package.json").toString("utf8"),
+    );
+  } catch (error) {
+    throw new Error(`无法读取安装包中的 Koffi 主包版本：${appArchive}`, { cause: error });
+  }
+
+  let nativeManifest;
+  try {
+    nativeManifest = JSON.parse(await readFile(nativeManifestPath, "utf8"));
+  } catch (error) {
+    throw new Error(`无法读取 Koffi Windows 原生模块版本：${nativeManifestPath}`, { cause: error });
+  }
+
+  const nativePackageName = "@koromix/koffi-win32-x64";
+  const declaredVersion = koffiManifest.optionalDependencies?.[nativePackageName];
+  if (
+    koffiManifest.version !== nativeManifest.version
+    || declaredVersion !== nativeManifest.version
+  ) {
+    throw new Error(
+      `Koffi Windows 原生模块版本不匹配：koffi=${koffiManifest.version ?? "未知"}，`
+      + `${nativePackageName}=${nativeManifest.version ?? "未知"}，声明版本=${declaredVersion ?? "未声明"}`,
+    );
+  }
+
+  return { version: koffiManifest.version };
+}
+
 export async function verifyWindowsPackagedRuntime(resourcesDirectoryInput) {
   const resourcesDirectory = path.resolve(resourcesDirectoryInput);
   const missing = [];
@@ -75,7 +119,8 @@ export async function verifyWindowsPackagedRuntime(resourcesDirectoryInput) {
   if (missing.length > 0) {
     throw new Error(`Windows 安装包缺少平台原生模块：\n- ${missing.join("\n- ")}`);
   }
-  return { nativeFileCount: WINDOWS_X64_NATIVE_FILES.length };
+  const koffi = await verifyKoffiNativeVersion(resourcesDirectory);
+  return { nativeFileCount: WINDOWS_X64_NATIVE_FILES.length, koffiVersion: koffi.version };
 }
 
 const isCommandLineEntry = process.argv[1]
@@ -87,5 +132,7 @@ if (isCommandLineEntry) {
     throw new Error("用法：node scripts/verify-windows-packaged-runtime.mjs <resources目录>");
   }
   const result = await verifyWindowsPackagedRuntime(resourcesDirectory);
-  console.log(`Windows x64 原生运行时校验通过：${result.nativeFileCount} 个文件。`);
+  console.log(
+    `Windows x64 原生运行时校验通过：${result.nativeFileCount} 个文件，Koffi ${result.koffiVersion}。`,
+  );
 }

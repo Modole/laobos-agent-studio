@@ -15,7 +15,12 @@ import {
   formatUserSystemPrompt,
   gitWorkspace,
 } from "../packages/laobos-system-tools/lib/index.js";
-import { SystemToolsStore } from "../packages/laobos-system-tools/lib/store.js";
+import {
+  embedKnowledgeImages,
+  extractMarkdownImageUrls,
+  sanitizeKnowledgeMarkdownImages,
+  SystemToolsStore,
+} from "../packages/laobos-system-tools/lib/store.js";
 
 const definition = {
   version: 2,
@@ -111,9 +116,33 @@ test("DSH system-tools store preserves knowledge CRUD/search and published workf
     });
     assert.equal(document.chunkCount, 1);
     assert.deepEqual(document.imageUrls, ["https://example.com/release-checklist.png"]);
+    const documentDetail = store.getDocument(document.id);
+    assert.match(documentDetail.content, /!\[发布规范 图片 1\]\(<https:\/\/example\.com\/release-checklist\.png>\)/u);
     const knowledgeResult = store.searchKnowledge({ query: "安全审批" })[0];
     assert.match(knowledgeResult.content, /回滚方案/);
+    assert.match(knowledgeResult.content, /!\[发布规范 图片 1\]\(<https:\/\/example\.com\/release-checklist\.png>\)/u);
     assert.deepEqual(knowledgeResult.imageUrls, ["https://example.com/release-checklist.png"]);
+    store.database.prepare("UPDATE knowledge_documents SET content=? WHERE id=?").run(
+      "生产发布必须经过安全审批，并且保留回滚方案。",
+      document.id,
+    );
+    store.database.prepare("UPDATE knowledge_chunks SET content=? WHERE document_id=?").run(
+      "生产发布必须经过安全审批，并且保留回滚方案。",
+      document.id,
+    );
+    const legacyKnowledgeResult = store.searchKnowledge({ query: "安全审批" })[0];
+    assert.match(legacyKnowledgeResult.content, /!\[发布规范 图片 1\]\(<https:\/\/example\.com\/release-checklist\.png>\)/u);
+    const markdownDocument = store.upsertDocument({
+      collectionId: collection.id,
+      title: "界面说明",
+      content: "可视化界面如下。\n\n![操作界面](https://example.com/console.webp)",
+      imageUrls: [],
+    });
+    assert.deepEqual(markdownDocument.imageUrls, ["https://example.com/console.webp"]);
+    assert.deepEqual(
+      extractMarkdownImageUrls(store.getDocument(markdownDocument.id).content),
+      ["https://example.com/console.webp"],
+    );
     assert.throws(
       () => store.upsertDocument({ collectionId: collection.id, title: "危险图片", content: "拒绝非 HTTP 图片", imageUrls: ["file:///tmp/private.png"] }),
       (error) => error.code === "IMAGE_URL_INVALID",
@@ -150,6 +179,27 @@ test("DSH system-tools store preserves knowledge CRUD/search and published workf
     store.close();
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("knowledge image embedding canonicalizes legacy URLs without duplicating Markdown images", () => {
+  const credentialedImageUrl = ["https://", "test-user:test-secret@", "example.com/private.png"].join("");
+  const embedded = embedKnowledgeImages(
+    "说明\n\n![已有图片](https://example.com/a.png)",
+    ["https://example.com/a.png", "https://example.com/b.png"],
+    "操作指南",
+  );
+  assert.deepEqual(embedded.imageUrls, [
+    "https://example.com/a.png",
+    "https://example.com/b.png",
+  ]);
+  assert.equal(embedded.content.match(/example\.com\/a\.png/gu)?.length, 1);
+  assert.match(embedded.content, /!\[操作指南 图片 2\]\(<https:\/\/example\.com\/b\.png>\)/u);
+  const sanitized = sanitizeKnowledgeMarkdownImages(
+    `![安全图片](https://example.com/safe.png) ![危险图片](${credentialedImageUrl})`,
+  );
+  assert.match(sanitized, /!\[安全图片\]\(<https:\/\/example\.com\/safe\.png>\)/u);
+  assert.doesNotMatch(sanitized, /secret|private\.png/u);
+  assert.match(sanitized, /图片：危险图片/u);
 });
 
 test("workflow migration keeps previously published tools enabled", async () => {
@@ -491,12 +541,30 @@ test("browser plugin exposes right-side page navigation and migrated settings", 
     new URL("../packages/laobos-system-tools/lib/client.js", import.meta.url),
     "utf8",
   );
-  for (const label of ["对话", "轨迹", "文件管理器", "版本中心", "知识库", "Skills", "MCP", "终端", "浏览器", "SSH", "应用管理"]) {
+  const workspaceSource = await readFile(
+    new URL("../packages/laobos-workspace-tools/lib/client.js", import.meta.url),
+    "utf8",
+  );
+  for (const label of ["对话", "轨迹", "文件管理器", "知识库", "Skills", "MCP", "终端", "浏览器", "SSH", "应用管理"]) {
     assert.match(source, new RegExp(`label: "${label}"`, "u"));
   }
+  assert.match(workspaceSource, /const title = [^;]+"文件管理器" : "版本中心"/u);
   for (const group of ["对话", "工作台", "集成管理"]) {
     assert.match(source, new RegExp(`groupLabel: "${group}"`, "u"));
   }
+  assert.match(source, /"laobos\.project\.integration": \{ kind: "list", scope: "root" \}/u);
+  assert.match(source, /getVersion\("laobos\.project\.integration"\)/u);
+  assert.match(source, /entries\("laobos\.project\.integration"\)/u);
+  assert.match(source, /items: \[\.\.\.integrationNavigation, \.\.\.projectIntegrationRows\]/u);
+  assert.match(source, /const \[visitedPages, setVisitedPages\] = useState/u);
+  assert.match(source, /item\.id === active \|\| visitedPages\.has\(item\.id\)/u);
+  assert.match(source, /renderSlot\("laobos\.project\.integration", \{\}, \{ only: item\.id \}\)/u);
+  assert.match(source, /\.lbs-center-page\[data-active=false\]\{display:none\}/u);
+  assert.match(source, /"data-active": selected/u);
+  assert.match(source, /entry\.component\?\.projectIntegrationIcon/u);
+  assert.match(source, /typeof DeclaredIcon === "function"/u);
+  assert.match(source, /h\(DeclaredIcon, \{ size: 16, className: "lbs-nav-svg" \}\)/u);
+  assert.match(source, /plugin \? Primitives\.IconCordisPluginOutline14/u);
   assert.doesNotMatch(source, /sidebar\.footer\.action/u);
   assert.match(source, /shell\.overlay/u);
   assert.match(source, /data-laobos-right-sidebar/u);
@@ -522,6 +590,11 @@ test("browser plugin exposes right-side page navigation and migrated settings", 
   assert.match(source, /召回测试/u);
   assert.match(source, /\/knowledge\/search/u);
   assert.match(source, /保存并重新索引/u);
+  assert.match(source, /Primitives\.MarkdownText/u);
+  assert.match(source, /function KnowledgeSearchToolView/u);
+  assert.match(source, /ensureKnowledgeToolview\(ctx, "knowledge_search"\)/u);
+  assert.match(source, /!\[图片说明\]\(https:\/\/\.\.\.\)/u);
+  assert.doesNotMatch(source, /图片 URL（每行一个/u);
   assert.match(source, /className: "lbs-knowledge-table"/u);
   assert.match(source, /className: "lbs-knowledge-toolbar"/u);
   assert.match(source, /搜索知识库名称或说明/u);

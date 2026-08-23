@@ -10,6 +10,7 @@ import {
   parseGitStatusV2,
   restoreGit,
   stageGit,
+  summarizeGitChanges,
   syncGit,
   unstageGit,
 } from "../../packages/laobos-system-tools/lib/git-service.mjs";
@@ -17,6 +18,7 @@ import {
 const channels = [
   "laobos:git:inspect",
   "laobos:git:status",
+  "laobos:git:summary",
   "laobos:git:diff",
   "laobos:git:log",
   "laobos:git:init",
@@ -41,10 +43,11 @@ export function registerGitReviewIpc({ ipcMain, workspace, workspaceAuthorizer, 
     if (!value.isRepository) throw new Error("当前工作区还没有启用 Git 版本管理。");
     return value;
   });
+  handle("laobos:git:summary", (root, input) => summarizeGitChanges(root, input));
   handle("laobos:git:diff", (root, input) => diffGit(root, input));
   handle("laobos:git:log", async (root, input) => {
-    const value = await inspectGit(root);
-    const limit = Math.min(100, Math.max(1, Number(input.limit) || 30));
+    const limit = Math.min(500, Math.max(1, Number(input.limit) || 30));
+    const value = await inspectGit(root, { commitLimit: limit });
     return { commits: value.commits.slice(0, limit) };
   });
   handle("laobos:git:init", (root, input) => initializeGit(root, input));

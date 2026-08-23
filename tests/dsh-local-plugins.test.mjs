@@ -12,7 +12,9 @@ import {
 test("the public client bundles local features without private account plugins", () => {
   assert.equal(bundledPluginNames.includes("laobos-updater"), true);
   assert.equal(bundledPluginNames.includes("laobos-cloud-auth"), false);
-  assert.equal(bundledPluginNames.includes("laobos-context-window"), false);
+  assert.equal(bundledPluginNames.includes("laobos-context-window"), true);
+  assert.equal(bundledPluginNames.includes("laobos-platform-bridge"), true);
+  assert.equal(bundledPluginNames.includes("laobos-plugin-exporter"), true);
 });
 
 test("Windows and packaged clients deploy bundled plugins without privileged symlinks", () => {

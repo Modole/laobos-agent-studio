@@ -23,10 +23,14 @@ test("DSH runtime is pinned to the validated release", async () => {
     await readFile(join(projectRoot, "package.json"), "utf8"),
   );
 
-  assert.equal(packageJson.dependencies["@deepseek-ai/dsh"], "0.1.0-rc.7");
+  assert.equal(packageJson.dependencies["@deepseek-ai/dsh"], "0.1.0-rc.8");
   assert.equal(packageJson.dependencies["node-pty"], "1.2.0-beta.15");
-  assert.equal(packageJson.dependencies["@deepseek-ai/dsh-llm-pi-ai"], undefined);
-  assert.equal(packageJson.dependencies["@earendil-works/pi-ai"], undefined);
+
+  const runtimeSource = await readFile(
+    join(projectRoot, "desktop", "dsh-runtime.mjs"),
+    "utf8",
+  );
+  assert.match(runtimeSource, /"--no-open"/u);
 });
 
 test("the node-pty spawn helper permission is repaired deterministically", async () => {
@@ -107,7 +111,19 @@ test("completed task records collapse as a turn and preserve the final answer", 
 
   assert.match(client, /function TaskRecordFoldBridge\(\)/);
   assert.match(client, /data-chat-flow-kind/);
+  assert.match(client, /const flowMarker = \(node\) =>/);
+  assert.match(client, /const flowRowsIn = \(column\) =>/);
+  assert.match(client, /return \{ container: child, nodes: nestedRows \}/);
+  assert.match(client, /data-chat-flow-host/);
+  assert.match(client, /data-chat-flow-completed/);
+  assert.match(client, /data-chat-flow-final/);
+  assert.match(client, /data-chat-session-id/);
+  assert.match(client, /summaryFor\(group\.container, group, record\)/);
   assert.match(client, /data-turn-tail/);
+  assert.match(client, /turnId \? `turn:\$\{turnId\}`/);
+  assert.match(client, /group\.contract\s*\? group\.nodes\.find\(flowFinal\)/);
+  assert.match(client, /Number\.isFinite\(group\.toolCount\)/);
+  assert.match(client, /!\["user", "turn-tail"\]\.includes\(flowKind\(node\)\)/);
   assert.match(client, /lbs-task-process-hidden/);
   assert.match(client, /lbs-task-final-collapsed/);
   assert.match(client, /assistants\.findLast\(hasVisibleAnswer\)/);
@@ -188,6 +204,11 @@ test("the 劳博士 browser plugin injects Cordis services rather than package i
   ]);
   assert.match(client, /const inject = \["slots", "sessions"\]/);
   assert.match(client, /const brandName = "劳博士"/);
+  assert.match(client, /function LaobosBrandMark/);
+  assert.match(client, /function LaobosBrandName/);
+  assert.match(client, /name: "sidebar\.brand\.mark",\s+priority: -100/);
+  assert.match(client, /name: "sidebar\.brand\.name",\s+priority: -100/);
+  assert.match(client, /name: "conversation\.hero\.brand\.mark",\s+priority: -100/);
   assert.match(client, /svg\.dataset\.laobosBrandIcon = "true"/);
   assert.match(client, /transform:scaleX\(-1\)/);
   assert.match(client, /document\.title = brandName/);
@@ -273,8 +294,8 @@ test("composed web profile contains safety, approval and mode UI", async () => {
       assert.match(composed, new RegExp(`id:\\s+${pluginId}(?:\\s|$)`));
     }
     assert.match(composed, /defaultPreset:\s+workspace-write/);
-    assert.match(composed, /id:\s+laobos-updater(?:\s|$)/u);
-    assert.doesNotMatch(composed, /laobos-cloud-auth/u);
+    assert.doesNotMatch(composed, /searchProvider:\s+laobos-cloud/u);
+    assert.doesNotMatch(composed, /id:\s+laobos-cloud-auth\b/u);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }

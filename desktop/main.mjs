@@ -23,6 +23,8 @@ import {
 import { migratePiOnFirstRun } from "../migrations/auto-pi.mjs";
 import { registerDesktopDomains } from "./register-desktop-domains.mjs";
 import { installPermissionPolicy } from "./permissions.mjs";
+import { startSshAgentBridge } from "./ssh-agent-bridge.mjs";
+import { SshService } from "./ssh-service.mjs";
 
 const isDevelopment = !app.isPackaged;
 const productName = isDevelopment ? "劳博士（开发版）" : "劳博士";
@@ -38,6 +40,8 @@ if (isDevelopment) {
 let mainWindow;
 let runtime;
 let runtimeUrl;
+let sshService;
+let sshAgentBridge;
 let isQuitting = false;
 let disposeDesktopDomains;
 let dshHome;
@@ -60,6 +64,11 @@ function prepareToQuit() {
       const activeRuntime = runtime;
       runtime = undefined;
       await activeRuntime?.close();
+      const activeSshAgentBridge = sshAgentBridge;
+      sshAgentBridge = undefined;
+      await activeSshAgentBridge?.close();
+      sshService?.dispose();
+      sshService = undefined;
     })();
   }
   return shutdownPromise;
@@ -95,6 +104,9 @@ async function bootRuntime() {
   dshHome = path.join(app.getPath("userData"), "dsh");
   workspace = resolveWorkspace();
 
+  if (!sshService) sshService = new SshService({ app, safeStorage });
+  if (!sshAgentBridge) sshAgentBridge = await startSshAgentBridge({ service: sshService });
+
   try {
     await migratePiOnFirstRun({
       dshHome,
@@ -119,6 +131,10 @@ async function bootRuntime() {
     dshHome,
     electronRunAsNode: true,
     pluginMode: bundledPluginMode({ packaged: app.isPackaged }),
+    runtimeEnv: {
+      LAOBOS_SSH_BRIDGE_URL: sshAgentBridge.url,
+      LAOBOS_SSH_BRIDGE_TOKEN: sshAgentBridge.token,
+    },
   });
   runtimeUrl = await runtime.ready;
 
@@ -298,6 +314,7 @@ if (!hasSingleInstanceLock) {
         safeStorage,
         app,
         dshHome,
+        sshService,
         workspace,
         getMainWindow: () => mainWindow,
         getRuntimeUrl: () => runtimeUrl,

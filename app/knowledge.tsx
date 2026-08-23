@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DragEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ApiFetch = (pathname: string, init?: RequestInit) => Promise<Response>;
 
@@ -23,6 +23,7 @@ type KnowledgeDocument = {
   collectionId: string;
   title: string;
   source?: string;
+  imageUrls?: string[];
   contentLength: number;
   chunkCount: number;
   updatedAt: string;
@@ -33,6 +34,7 @@ type SearchResult = {
   collectionId: string;
   title: string;
   source?: string;
+  imageUrls?: string[];
   content: string;
   score: number;
 };
@@ -66,7 +68,21 @@ async function readKnowledgeFile(file: File): Promise<string> {
   if (file.size > 2_000_000) throw new Error(`${file.name} 超过 2 MB，建议先拆分文档。`);
   const text = await file.text();
   if (fileExtension(file.name) === ".html" || fileExtension(file.name) === ".htm") {
-    return new DOMParser().parseFromString(text, "text/html").body.textContent?.trim() || "";
+    const document = new DOMParser().parseFromString(text, "text/html");
+    for (const image of document.querySelectorAll("img")) {
+      try {
+        const url = new URL(image.getAttribute("src") || "");
+        if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
+          image.remove();
+          continue;
+        }
+        const alt = (image.getAttribute("alt") || "知识库图片").replace(/[\\\]]/g, "\\$&");
+        image.replaceWith(document.createTextNode(`\n\n![${alt}](<${url.toString()}>)\n\n`));
+      } catch {
+        image.remove();
+      }
+    }
+    return document.body.textContent?.trim() || "";
   }
   if (fileExtension(file.name) === ".json") {
     try {
@@ -82,11 +98,13 @@ export function KnowledgeBase({
   apiFetch,
   connected,
   onNotify,
+	renderMarkdown,
 	refreshVersion = 0,
 }: {
   apiFetch: ApiFetch;
   connected: boolean;
   onNotify: (message: string) => void;
+	renderMarkdown?: (text: string) => ReactNode;
 	refreshVersion?: number;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -284,6 +302,7 @@ export function KnowledgeBase({
           collectionId: activeCollectionId,
           title: documentTitle,
           source: documentSource,
+          imageUrls: [],
           content: documentContent,
         }),
       });
@@ -400,7 +419,7 @@ export function KnowledgeBase({
 
               <div className="knowledge-content-grid">
                 <section className="knowledge-files-panel">
-                  <div className="knowledge-section-heading"><div><strong>资料</strong><small>支持文本、Markdown、CSV、JSON、HTML 与代码文件</small></div></div>
+                  <div className="knowledge-section-heading"><div><strong>资料</strong><small>支持文本、Markdown、CSV、JSON、HTML 与代码文件；图片使用 Markdown 链接嵌入</small></div></div>
                   <div className={`knowledge-drop-zone ${dragging ? "is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onFileDrop}>
                     <span>⇧</span><div><strong>拖入文件即可建立索引</strong><small>文件只在本机处理，单个不超过 2 MB</small></div><button type="button" onClick={() => fileInputRef.current?.click()}>选择文件</button>
                   </div>
@@ -430,7 +449,7 @@ export function KnowledgeBase({
               <section className="knowledge-test-section">
                 <div className="knowledge-section-heading"><div><strong>测试检索</strong><small>用和 Agent 相同的方式检查结果</small></div></div>
                 <form className="knowledge-search" onSubmit={search}><span>⌕</span><input value={searchQuery} placeholder="输入一个真实问题，例如：退款规则是什么？" onChange={(event) => setSearchQuery(event.target.value)} /><button type="submit" disabled={!connected || searching || !searchQuery.trim()}>{searching ? "检索中…" : "检索"}</button></form>
-                {results.length ? <div className="search-results">{results.map((result, index) => <article key={`${result.documentId}-${index}`}><div><strong>{result.title}</strong><small>相关度 {Math.round(result.score * 100)}%</small></div><p>{result.content}</p></article>)}</div> : null}
+                {results.length ? <div className="search-results">{results.map((result, index) => <article key={`${result.documentId}-${index}`}><div><strong>{result.title}</strong><small>相关度 {Math.round(result.score * 100)}%{result.imageUrls?.length ? ` · ${result.imageUrls.length} 张图片` : ""}</small></div>{renderMarkdown ? <div className="knowledge-result-markdown">{renderMarkdown(result.content)}</div> : <p>{result.content}</p>}</article>)}</div> : null}
               </section>
             </>
           ) : (
@@ -443,7 +462,7 @@ export function KnowledgeBase({
         <div className="modal-layer" role="presentation">
           <button className="modal-backdrop" type="button" aria-label="关闭" onClick={() => setDocumentOpen(false)} />
           <form className="modal-card knowledge-modal" onSubmit={saveDocument}>
-            <div className="modal-heading"><div className="modal-symbol neutral">▤</div><div><h2>粘贴文本资料</h2><p>内容会在本机自动切分并建立索引。</p></div><button className="icon-button" type="button" onClick={() => setDocumentOpen(false)}>×</button></div>
+            <div className="modal-heading"><div className="modal-symbol neutral">▤</div><div><h2>粘贴文本资料</h2><p>内容会在本机自动切分；使用 ![说明](https://...) 把图片嵌入正文。</p></div><button className="icon-button" type="button" onClick={() => setDocumentOpen(false)}>×</button></div>
             <label className="field"><span>标题</span><input required value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} /></label>
             <label className="field"><span>来源（可选）</span><input value={documentSource} placeholder="文件名、URL 或备注" onChange={(event) => setDocumentSource(event.target.value)} /></label>
             <label className="field"><span>正文</span><textarea required className="knowledge-editor" value={documentContent} placeholder="粘贴纯文本或 Markdown…" onChange={(event) => setDocumentContent(event.target.value)} /></label>

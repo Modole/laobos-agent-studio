@@ -8,7 +8,7 @@ import {
   readFile,
   readdir,
   rename,
-  rmdir,
+  rm,
   unlink,
   writeFile,
 } from "node:fs/promises";
@@ -135,6 +135,29 @@ export function registerWorkspaceFilesIpc({
     }
   });
 
+  ipcMain.handle("laobos:workspace:create", async (event, input = {}) => {
+    authorize(event);
+    const root = await authorizedRoot(workspace, input.root, workspaceAuthorizer);
+    const parent = boundedString(input.parent || ".", "父目录路径", 4096);
+    const directory = await resolveAuthorizedPath(root, parent, { kind: "directory" });
+    const name = safeEntryName(input.name);
+    const type = input.type === "directory" ? "directory" : "file";
+    const destination = path.join(directory.path, name);
+    await ensureDestinationAvailable(destination);
+    if (type === "directory") await mkdir(destination, { mode: 0o700 });
+    else await writeFile(destination, "", { flag: "wx", mode: 0o600 });
+    const created = await resolveAuthorizedPath(root, path.relative(root, destination), { kind: type });
+    return {
+      created: true,
+      name,
+      path: path.relative(root, destination) || ".",
+      type,
+      mediaType: type === "file" ? mediaTypeFor(destination) : null,
+      size: type === "file" ? created.stat.size : 0,
+      modifiedAt: created.stat.mtimeMs,
+    };
+  });
+
   ipcMain.handle("laobos:workspace:rename", async (event, input = {}) => {
     authorize(event);
     const root = await authorizedRoot(workspace, input.root, workspaceAuthorizer);
@@ -159,14 +182,10 @@ export function registerWorkspaceFilesIpc({
     const relative = boundedString(input.path, "路径", 4096);
     if (relative === ".") throw new Error("不能删除工作区根目录。 ");
     const target = await resolveAuthorizedPath(root, relative);
-    if (target.stat.isDirectory()) {
-      try { await rmdir(target.path); }
-      catch (error) {
-        if (["ENOTEMPTY", "EEXIST"].includes(error?.code)) throw new Error("文件夹不为空，只能删除空文件夹。 ");
-        throw error;
-      }
-    } else await unlink(target.path);
-    return { removed: true, type: target.stat.isDirectory() ? "directory" : "file" };
+    const recoverable = typeof shell.trashItem === "function";
+    if (recoverable) await shell.trashItem(target.path);
+    else await rm(target.path, { recursive: target.stat.isDirectory(), force: false });
+    return { removed: true, recoverable, type: target.stat.isDirectory() ? "directory" : "file" };
   });
 
   ipcMain.handle("laobos:workspace:reveal", async (event, input = {}) => {
@@ -175,6 +194,15 @@ export function registerWorkspaceFilesIpc({
     const target = await resolveAuthorizedPath(root, boundedString(input.path || ".", "路径", 4096));
     if (target.stat.isDirectory()) await shell.openPath(target.path);
     else shell.showItemInFolder(target.path);
+    return { opened: true };
+  });
+
+  ipcMain.handle("laobos:workspace:open", async (event, input = {}) => {
+    authorize(event);
+    const root = await authorizedRoot(workspace, input.root, workspaceAuthorizer);
+    const target = await resolveAuthorizedPath(root, boundedString(input.path, "文件路径", 4096), { kind: "file" });
+    const failure = await shell.openPath(target.path);
+    if (typeof failure === "string" && failure.trim()) throw new Error(`系统无法打开该文件：${failure.trim()}`);
     return { opened: true };
   });
 
@@ -257,9 +285,11 @@ export function registerWorkspaceFilesIpc({
       "laobos:workspace:list",
       "laobos:workspace:read",
       "laobos:workspace:write",
+      "laobos:workspace:create",
       "laobos:workspace:rename",
       "laobos:workspace:remove",
       "laobos:workspace:reveal",
+      "laobos:workspace:open",
       "laobos:uploads:set-location",
       "laobos:uploads:pick-files",
       "laobos:uploads:paste-files",

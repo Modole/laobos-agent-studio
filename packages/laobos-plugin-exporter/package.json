@@ -1,0 +1,13 @@
+{
+  "name": "@laobos/dsh-plugin-exporter",
+  "version": "0.1.0",
+  "description": "将当前工作区中的 DSH 插件安全导出为可手动上传到劳博士插件市场的 .tar.gz 插件包。",
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  }
+}

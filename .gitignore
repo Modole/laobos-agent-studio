@@ -52,6 +52,8 @@ yarn-error.log*
 # typescript
 next-env.d.ts
 *.tsbuildinfo
+__pycache__/
+*.py[cod]
 /dist/
 /dist-desktop/
 /resources/pi/
@@ -65,3 +67,5 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+.laobos-exports/
+/backups/

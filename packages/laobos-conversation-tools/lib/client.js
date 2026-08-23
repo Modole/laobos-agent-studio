@@ -33,22 +33,29 @@ window.__ModuleLoader__.load({
     const rawContentText = (content) => Array.isArray(content)
       ? content.filter((part) => part?.type === "text").map((part) => part.text || "").join("\n").trim()
       : "";
-    const FILE_ENVELOPE_PATTERN = /<laobos-file>\s*([\s\S]*?)\s*<\/laobos-file>/gu;
+    const CONTEXT_ENVELOPE_PATTERN = /<(laobos-file|laobos-browser-element)>\s*([\s\S]*?)\s*<\/\1>/gu;
     const contentProjection = (content) => {
       const files = [];
       const envelopes = [];
-      const text = rawContentText(content).replace(FILE_ENVELOPE_PATTERN, (match, payload) => {
+      const text = rawContentText(content).replace(CONTEXT_ENVELOPE_PATTERN, (match, tag, payload) => {
         try {
-          const file = JSON.parse(payload);
-          if (file?.kind !== "file" || file?.version !== 1 || typeof file.name !== "string" || typeof file.path !== "string") return match;
-          files.push(file);
+          const context = JSON.parse(payload);
+          if (context?.version !== 1) return match;
+          if (tag === "laobos-file") {
+            if (context.kind !== "file" || typeof context.name !== "string" || typeof context.path !== "string") return match;
+            files.push(context);
+          } else {
+            if (context.kind !== "browser-element") return match;
+            const page = new URL(String(context.page?.url || ""));
+            if (page.protocol !== "http:" && page.protocol !== "https:") return match;
+          }
           envelopes.push(match);
           return "";
         } catch { return match; }
       }).replace(/\n{3,}/gu, "\n\n").trim();
       return { text, files, envelopes };
     };
-    const appendFileEnvelopes = (text, envelopes) => [String(text || "").trim(), ...envelopes].filter(Boolean).join("\n");
+    const appendContextEnvelopes = (text, envelopes) => [String(text || "").trim(), ...envelopes].filter(Boolean).join("\n");
     function orderedNodes(snapshot) {
       return snapshot?.chat?.order
         ?.map((key) => snapshot.chat.nodes.get(key))
@@ -548,12 +555,10 @@ window.__ModuleLoader__.load({
 
     function ConversationActions({ sessionId, useSession }) {
       const snapshot = useSession((value) => value);
-      const [open, setOpen] = useState(false);
       const [editing, setEditing] = useState(false);
       const [busy, setBusy] = useState("");
       const [feedback, setFeedback] = useState("");
       const [messageActionTarget, setMessageActionTarget] = useState(null);
-      const root = useRef(null);
       const user = useMemo(() => latestUser(snapshot), [snapshot]);
       const projection = useMemo(() => contentProjection(user?.data?.content), [user]);
       const initialText = projection.text;
@@ -579,17 +584,8 @@ window.__ModuleLoader__.load({
         };
       }, [user?.key]);
 
-      useEffect(() => {
-        if (!open) return undefined;
-        const close = (event) => { if (!root.current?.contains(event.target)) setOpen(false); };
-        const key = (event) => { if (event.key === "Escape") setOpen(false); };
-        document.addEventListener("pointerdown", close);
-        window.addEventListener("keydown", key);
-        return () => { document.removeEventListener("pointerdown", close); window.removeEventListener("keydown", key); };
-      }, [open]);
-
       const run = async (label, task) => {
-        setOpen(false); setBusy(label); setFeedback("");
+        setBusy(label); setFeedback("");
         try { const result = await task(); setFeedback(result?.canceled ? "已取消" : `${label}完成`); }
         catch (error) { setFeedback(error instanceof Error ? error.message : String(error)); }
         finally { setBusy(""); }
@@ -598,8 +594,9 @@ window.__ModuleLoader__.load({
       const unavailable = snapshot.running || Boolean(busy) || !hasContent;
       const inlineActions = messageActionTarget && hasContent ? ReactDOM.createPortal(
         h(React.Fragment, null,
+          feedback ? h("span", { className: "lbs-conv-feedback", title: feedback }, feedback) : null,
           h(Primitives.Tooltip, { label: "编辑上一轮并重发", side: "bottom" },
-            h("button", { className: "lbs-conv-inline-action", type: "button", disabled: unavailable, "aria-label": "编辑上一轮并重发", onClick: () => { setOpen(false); setEditing(true); } },
+            h("button", { className: "lbs-conv-inline-action", type: "button", disabled: unavailable, "aria-label": "编辑上一轮并重发", onClick: () => setEditing(true) },
               h(Primitives.IconEditOutline16, { size: 16 }))),
           h(Primitives.Tooltip, { label: "重试上一轮", side: "bottom" },
             h("button", { className: "lbs-conv-inline-action", type: "button", disabled: unavailable, "aria-label": "重试上一轮", onClick: () => run("重试", () => retryLast(module.ctx, sessionId)) },
@@ -608,15 +605,8 @@ window.__ModuleLoader__.load({
         messageActionTarget,
       ) : null;
 
-      return h("div", { className: "lbs-conv-actions", ref: root },
-        feedback ? h("span", { className: "lbs-conv-feedback", title: feedback }, feedback) : null,
-        h("button", { className: "lbs-conv-action-button", type: "button", disabled: Boolean(busy), "aria-label": "会话操作", onClick: () => setOpen((value) => !value) },
-          h(Primitives.IconEllipsisOutline16, { size: 16 })),
-        open ? h("div", { className: "lbs-conv-menu", role: "menu" },
-          h("button", { onClick: () => run("导出", () => exportConversation(module.ctx, sessionId)) }, "导出完整会话为 HTML"),
-          h("button", { className: "danger", onClick: () => run("删除", () => deleteConversation(module.ctx, sessionId)) }, "删除会话"),
-        ) : null,
-        editing ? h(EditDialog, { initialValue: initialText, allowEmpty: projection.envelopes.length > 0, busy: busy === "发送", onCancel: () => setEditing(false), onConfirm: (value) => run("发送", async () => { await editAndResend(module.ctx, sessionId, appendFileEnvelopes(value, projection.envelopes)); setEditing(false); }) }) : null,
+      return h(React.Fragment, null,
+        editing ? h(EditDialog, { initialValue: initialText, allowEmpty: projection.envelopes.length > 0, busy: busy === "发送", onCancel: () => setEditing(false), onConfirm: (value) => run("发送", async () => { await editAndResend(module.ctx, sessionId, appendContextEnvelopes(value, projection.envelopes)); setEditing(false); }) }) : null,
         inlineActions,
       );
     }

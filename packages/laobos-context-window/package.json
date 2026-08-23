@@ -1,0 +1,25 @@
+{
+  "name": "@laobos/dsh-context-window",
+  "version": "0.1.0",
+  "description": "劳博士上下文窗口调节插件。",
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
+    }
+  }
+}

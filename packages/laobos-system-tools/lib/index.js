@@ -364,6 +364,7 @@ export function apply(ctx, config) {
 知识库由你主动维护、用户监督。回答项目事实、既有规则或长期信息前，优先调用 knowledge_search。
 当用户明确要求记住某项信息，或信息稳定且会在后续任务中复用时，使用 knowledge_manager 写入；未指定知识库时让工具自动维护“Agent 知识”。
 默认写入当前工作区；只有用户明确要求跨项目复用时才使用 global scope。
+知识正文使用 Markdown；图片以 ![说明](https://...) 直接嵌入正文。召回内容包含相关图片时，在回答中原样保留有帮助的 Markdown 图片，客户端会将其展示为图片。
 不要保存临时对话、猜测、未经确认的结论、凭据或其他秘密。更新前先读取现有文档并携带 revision。删除必须使用 knowledge_delete。`,
   });
   ctx.systemPrompt.section({
@@ -379,7 +380,7 @@ export function apply(ctx, config) {
 
   ctx.tools.register(defineTool({
     name: "knowledge_search",
-    description: "Search Agent-enabled local knowledge before answering project facts, existing rules, or durable user information. This is read-only.",
+    description: "Search Agent-enabled local knowledge before answering project facts, existing rules, or durable user information. Result content is Markdown; preserve relevant ![alt](https://...) images in the answer so the client can render them. This is read-only.",
     parameters: {
       query: { type: "string", required: true, description: "Question or phrase to search for." },
       collectionId: { type: "string", description: "Optional knowledge collection id." },
@@ -399,7 +400,7 @@ export function apply(ctx, config) {
       names.add(collection.toolName);
       dynamicDisposers.push(ctx.tools.register(defineTool({
         name: collection.toolName,
-        description: collection.description || `Search the ${collection.name} knowledge collection.`,
+        description: `${collection.description || `Search the ${collection.name} knowledge collection.`} Result content is Markdown; preserve relevant ![alt](https://...) images in the answer so the client can render them.`,
         parameters: {
           query: { type: "string", required: true, description: "Question or phrase to search for." },
           topK: { type: "integer", description: "Maximum passages (1-20)." },
@@ -426,9 +427,9 @@ export function apply(ctx, config) {
       agentEnabled: { type: "boolean", description: "Whether Agent search may access this collection." },
       toolName: { type: "string", description: "Optional stable tool alias for a collection." },
       title: { type: "string", description: "Document title for upsert_document." },
-      content: { type: "string", description: "Durable document content for upsert_document." },
+      content: { type: "string", description: "Durable Markdown content for upsert_document. Embed images inline as ![alt](https://...)." },
       source: { type: "string", description: "Source file, URL, conversation, or provenance note." },
-      imageUrls: { type: "array", description: "Optional HTTP(S) image URLs rendered with this document (maximum 12)." },
+      imageUrls: { type: "array", description: "Legacy-compatible HTTP(S) image URLs (maximum 12); they are converted to inline Markdown images in content." },
     },
     output: jsonOutput,
     execute: async (args) => {

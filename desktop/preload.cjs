@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("laobosDesktop", Object.freeze({
     fileAttachments: true,
     terminal: true,
     browserPreview: true,
+    browserElementPicker: true,
     browserOps: true,
     ssh: true,
     apps: true,
@@ -48,13 +49,16 @@ contextBridge.exposeInMainWorld("laobosDesktop", Object.freeze({
     list: (input) => invoke("laobos:workspace:list", input),
     read: (input) => invoke("laobos:workspace:read", input),
     write: (input) => invoke("laobos:workspace:write", input),
+    create: (input) => invoke("laobos:workspace:create", input),
     rename: (input) => invoke("laobos:workspace:rename", input),
     remove: (input) => invoke("laobos:workspace:remove", input),
     reveal: (input) => invoke("laobos:workspace:reveal", input),
+    open: (input) => invoke("laobos:workspace:open", input),
   }),
   git: Object.freeze({
     inspect: (input) => invoke("laobos:git:inspect", input),
     status: (input) => invoke("laobos:git:status", input),
+    summary: (input) => invoke("laobos:git:summary", input),
     diff: (input) => invoke("laobos:git:diff", input),
     log: (input) => invoke("laobos:git:log", input),
     init: (input) => invoke("laobos:git:init", input),
@@ -92,10 +96,17 @@ contextBridge.exposeInMainWorld("laobosDesktop", Object.freeze({
     setBounds: (bounds) => invoke("laobos:browser:set-bounds", bounds),
     navigate: (url) => invoke("laobos:browser:navigate", { url }),
     action: (action) => invoke("laobos:browser:action", { action }),
+    startInspect: () => invoke("laobos:browser:inspect-start"),
+    stopInspect: () => invoke("laobos:browser:inspect-stop"),
     onState: (listener) => {
       const wrapped = (_event, payload) => listener(payload);
       ipcRenderer.on("laobos:browser:state", wrapped);
       return () => ipcRenderer.removeListener("laobos:browser:state", wrapped);
+    },
+    onElementSelected: (listener) => {
+      const wrapped = (_event, payload) => listener(payload);
+      ipcRenderer.on("laobos:browser:element-selected", wrapped);
+      return () => ipcRenderer.removeListener("laobos:browser:element-selected", wrapped);
     },
   }),
   browserOps: Object.freeze({
@@ -127,10 +138,14 @@ contextBridge.exposeInMainWorld("laobosDesktop", Object.freeze({
     deleteProfile: (id) => invoke("laobos:ssh:delete-profile", { id }),
     deleteCredential: (id) => invoke("laobos:ssh:delete-credential", { id }),
     forgetHostKey: (id) => invoke("laobos:ssh:forget-host-key", { id }),
+    importConfig: () => invoke("laobos:ssh:import-config"),
     connect: (input) => invoke("laobos:ssh:connect", input),
     write: (input) => invoke("laobos:ssh:write", input),
     resize: (input) => invoke("laobos:ssh:resize", input),
     disconnect: (id) => invoke("laobos:ssh:disconnect", { id }),
+    sftp: (input) => invoke("laobos:ssh:sftp", input),
+    upload: (input) => invoke("laobos:ssh:upload", input),
+    download: (input) => invoke("laobos:ssh:download", input),
     onData: (listener) => {
       const wrapped = (_event, payload) => listener(payload);
       ipcRenderer.on("laobos:ssh:data", wrapped);

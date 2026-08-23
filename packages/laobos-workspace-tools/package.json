@@ -4,6 +4,9 @@
   "license": "SEE LICENSE IN ../../LICENSE",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "@deepseek-ai/dsh-llm": "0.1.0-rc.8"
+  },
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",

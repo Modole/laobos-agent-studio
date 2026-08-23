@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-assign-module-variable -- DSH browser plugins use a CommonJS-style module factory */
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { attachTerminalEnhancements } from "../../laobos-terminal-kit/index.mjs";
 import xtermCss from "@xterm/xterm/css/xterm.css";
 
 window.__ModuleLoader__.load({
@@ -13,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
     const css = `${xtermCss}\n
-      .lbs-terminal-panel{background:var(--dsw-alias-bg-base);bottom:0;color:var(--dsw-alias-label-primary);display:grid;grid-template-rows:44px minmax(0,1fr) 24px;left:var(--lbs-left-column,280px);pointer-events:auto;position:fixed;right:var(--lbs-right-column,56px);top:0;z-index:2147483060}
+      .lbs-terminal-panel{background:var(--dsw-alias-bg-base);bottom:0;color:var(--dsw-alias-label-primary);display:grid;grid-template-rows:44px minmax(0,1fr) 24px;left:var(--lbs-left-column,280px);pointer-events:auto;position:fixed;right:var(--lbs-right-column,56px);top:0;z-index:2147483060}.lbs-terminal-panel[data-open=false],.lbs-terminal-panel[data-open=false] .lbs-terminal-surface{pointer-events:none!important;visibility:hidden!important}
       .lbs-terminal-toolbar{align-items:center;background:var(--dsw-alias-bg-layer-1);border-bottom:1px solid var(--dsw-alias-border-l1);display:flex;gap:6px;min-width:0;padding:0 9px}.lbs-terminal-toolbar strong{font-size:13px;margin-right:2px}.lbs-terminal-toolbar .lbs-terminal-tabs{display:flex!important;flex:1;gap:3px;min-width:0;overflow:auto hidden}.lbs-terminal-tab{align-items:center;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--dsw-alias-label-tertiary);display:flex;height:30px;max-width:190px;min-width:112px;padding:0 4px 0 8px}.lbs-terminal-tab[data-active=true]{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}.lbs-terminal-tab-main{align-items:center;background:transparent;border:0;color:inherit;cursor:pointer;display:flex;flex:1;font:inherit;font-size:11px;gap:6px;min-width:0;padding:0}.lbs-terminal-tab-main span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lbs-terminal-dot{background:var(--dsw-alias-label-caption,var(--dsw-alias-label-tertiary));border-radius:50%;flex:none;height:6px;width:6px}.lbs-terminal-dot[data-state=connected]{background:var(--dsw-alias-state-success-primary,#39b87b)}.lbs-terminal-dot[data-state=creating]{background:var(--dsw-alias-state-warn-primary,#e1a83d)}.lbs-terminal-dot[data-state=error]{background:var(--dsw-alias-state-error-primary,#e25d68)}.lbs-terminal-tab-close,.lbs-terminal-icon{appearance:none;background:transparent;border:0;border-radius:5px;color:inherit;cursor:pointer;display:grid;flex:none;height:26px;place-items:center;width:26px}.lbs-terminal-tab-close:hover,.lbs-terminal-icon:hover{background:var(--dsw-alias-interactive-bg-hover)}.lbs-terminal-select{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:6px;color:var(--dsw-alias-label-primary);font:11px inherit;height:29px;padding:0 7px}.lbs-terminal-new{appearance:none;background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-interactive-bg-primary));border:0;border-radius:6px;color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-label-on-primary));cursor:pointer;font:600 11px inherit;height:29px;padding:0 10px}.lbs-terminal-stage{background:var(--dsw-alias-bg-base);min-height:0;position:relative}.lbs-terminal-surface{inset:0;pointer-events:none;position:absolute;visibility:hidden}.lbs-terminal-surface[data-active=true]{pointer-events:auto;visibility:visible}.lbs-terminal-host{box-sizing:border-box;height:100%;padding:8px}.lbs-terminal-host .xterm{height:100%}.lbs-terminal-empty{align-content:center;color:var(--dsw-alias-label-tertiary);display:grid;gap:9px;height:100%;justify-items:center;padding:28px;text-align:center}.lbs-terminal-empty strong{color:var(--dsw-alias-label-primary);font-size:13px}.lbs-terminal-empty p{font-size:11px;line-height:1.5;margin:0;max-width:460px}.lbs-terminal-empty button{background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-interactive-bg-primary));border:0;border-radius:6px;color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-label-on-primary));height:31px;padding:0 11px}.lbs-terminal-message{background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#d94b4b) 10%,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-state-error-primary,#d94b4b);font-size:11px;left:10px;max-width:calc(100% - 20px);padding:7px 10px;position:absolute;top:8px;z-index:3}.lbs-terminal-status{align-items:center;background:var(--dsw-alias-bg-layer-1);border-top:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-tertiary);display:flex;font-size:9px;gap:12px;padding:0 9px}.lbs-terminal-status span:last-child{margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@media(max-width:850px){.lbs-terminal-panel{left:0;right:0}.lbs-terminal-toolbar strong{display:none}.lbs-terminal-tab{min-width:96px}.lbs-terminal-select{max-width:94px}}
     `;
     if (typeof document !== "undefined" && !document.querySelector('style[data-plugin-css="@laobos/dsh-terminal-ui"]')) {
@@ -81,6 +82,7 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         activeRef.current = active;
         if (active) terminalRef.current?.focus();
+        else terminalRef.current?.blur();
       }, [active]);
       useEffect(() => {
         if (!window.laobosDesktop?.capabilities?.terminal || !host.current) {
@@ -103,6 +105,7 @@ window.__ModuleLoader__.load({
         terminal.loadAddon(fit);
         terminal.open(host.current);
         const stopThemeSync = syncTerminalTheme(terminal, host.current);
+        const detachEnhancements = attachTerminalEnhancements(terminal, host.current, { isActive: () => activeRef.current });
         const fitTerminal = () => {
           try {
             fit.fit();
@@ -136,7 +139,7 @@ window.__ModuleLoader__.load({
         });
         return () => {
           disposed = true; terminalRef.current = null;
-          stopThemeSync(); resize.disconnect(); input.dispose(); offData(); offExit(); terminal.dispose();
+          detachEnhancements(); stopThemeSync(); resize.disconnect(); input.dispose(); offData(); offExit(); terminal.dispose();
           if (sessionId) void window.laobosDesktop.terminal.close({ id: sessionId });
         };
       }, [cwd, onError, onExit, onReady, tab.generation, tab.id, tab.sessionKey, tab.tmux]);
@@ -209,7 +212,6 @@ window.__ModuleLoader__.load({
         if (open) window.dispatchEvent(new CustomEvent("laobos:desktop-tool-opened", { detail: { tool: "terminal" } }));
       }, [open]);
 
-      if (!open) return null;
       const closeTab = (id) => {
         const index = tabsRef.current.findIndex((tab) => tab.id === id);
         const remaining = updateTabs((items) => items.filter((tab) => tab.id !== id));
@@ -220,7 +222,7 @@ window.__ModuleLoader__.load({
         setOpen(false);
         window.dispatchEvent(new CustomEvent("laobos:desktop-tool-closed", { detail: { tool: "terminal" } }));
       };
-      return <section className="lbs-terminal-panel" role="dialog" aria-label="终端">
+      return <section className="lbs-terminal-panel" data-open={open} role="dialog" aria-label="终端" aria-hidden={!open}>
         <header className="lbs-terminal-toolbar">
           <strong>终端</strong>
           <div className="lbs-terminal-tabs" role="tablist" aria-label="终端会话">
@@ -236,7 +238,7 @@ window.__ModuleLoader__.load({
         </header>
         <main className="lbs-terminal-stage">
           {!tabs.length ? <div className="lbs-terminal-empty"><strong>打开当前工作区终端</strong><p>可使用本地 Shell，或通过 tmux 保留工作区会话。终端目录始终限制在当前工作区。</p><button onClick={() => addTab()}>新建终端</button></div> : null}
-          {tabs.map((tab) => <div className="lbs-terminal-surface" data-active={activeId === tab.id} key={`${tab.id}:${tab.generation}`}><TerminalSurface tab={tab} cwd={cwd} active={activeId === tab.id} onReady={handleReady} onError={handleError} onExit={handleExit} /></div>)}
+          {tabs.map((tab) => <div className="lbs-terminal-surface" data-active={open && activeId === tab.id} key={`${tab.id}:${tab.generation}`}><TerminalSurface tab={tab} cwd={cwd} active={open && activeId === tab.id} onReady={handleReady} onError={handleError} onExit={handleExit} /></div>)}
           {active?.error ? <div className="lbs-terminal-message" role="alert">{active.error}</div> : null}
         </main>
         <footer className="lbs-terminal-status"><span>{tabs.filter((tab) => tab.state === "connected").length} 个活动会话</span><span>{active?.warning || (active?.tmux ? "tmux 会话会在关闭页面后保留" : "本地 Shell 会在关闭页面后结束")}</span><span title={active?.cwd || cwd}>{active?.cwd || cwd || "当前工作区"}</span></footer>

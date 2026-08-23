@@ -1,0 +1,117 @@
+diff --git a/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js
+index 4b7dd35..0d5bf1c 100644
+--- a/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js
++++ b/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js
+@@ -5520,7 +5520,7 @@ window.__ModuleLoader__.load({
+ 		* The chat view slot entry: pure component over the composed props; each
+ 		* ordered business Node crosses the keyed renderer seat.
+ 		*/
+-		function ChatView({ useSession, useSessions, useStore, renderSlot, sessionId, openFile, loadOlder, loadImage, inspectCall, chatScroll, forkAt, fileMentions, t }) {
++		function DefaultChatView({ useSession, useSessions, useStore, renderSlot, sessionId, openFile, loadOlder, loadImage, inspectCall, chatScroll, forkAt, fileMentions, t }) {
+ 			const order = useSession((s) => s.chat.order);
+ 			const nodeStore = useSession((s) => s.chat.nodes);
+ 			const timeline = useSession((s) => s.chat.timeline);
+@@ -5799,6 +5799,30 @@ window.__ModuleLoader__.load({
+ 				})]
+ 			});
+ 		}
++		const CHAT_PERFORMANCE_KIT = Object.freeze({
++			ChatNodeSeat,
++			PendingSteeringBubble,
++			TurnStatus,
++			FileOpenErrorDialog
++		});
++		function subscribeChatPerformance(listener) {
++			globalThis.addEventListener("laobos:chat-performance-change", listener);
++			return () => {
++				globalThis.removeEventListener("laobos:chat-performance-change", listener);
++			};
++		}
++		function readChatPerformance() {
++			const candidate = globalThis.__laobosChatPerformance?.ChatView;
++			return typeof candidate === "function" ? candidate : null;
++		}
++		/** Optional project-level renderer delegation; absent plugins retain the official view. */
++		function ChatView(props) {
++			const PerformanceChatView = (0, react.useSyncExternalStore)(subscribeChatPerformance, readChatPerformance, () => null);
++			return PerformanceChatView === null ? (0, react_jsx_runtime.jsx)(DefaultChatView, { ...props }) : (0, react_jsx_runtime.jsx)(PerformanceChatView, {
++				...props,
++				chatKit: CHAT_PERFORMANCE_KIT
++			});
++		}
+ 		/** In-page Host open-path refusal: the wire reason plus a retry of the same path. */
+ 		function FileOpenErrorDialog({ path, message, busy, onClose, onRetry, t }) {
+ 			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Modal, {
+@@ -9623,14 +9647,16 @@ window.__ModuleLoader__.load({
+ 			const turn = node.location.kind === "turn" || node.location.kind === "step" ? node.location.turn : void 0;
+ 			if (turn === void 0) return null;
+ 			const closing = data.closing;
+-			const tail = renderSlotChain("conversation.chat.turnTail", {
++			const tailOwner = {
+ 				turn,
+ 				seq: closing?.finalNode.seq ?? data.seq,
+ 				openFile
+-			});
+-			if (closing === null) return tail === null ? null : (0, react_jsx_runtime.jsx)("div", {
++			};
++			const tail = renderSlotChain("conversation.chat.turnTail", tailOwner);
++			const summary = renderSlotChain("conversation.chat.turnSummary", tailOwner, { fallback: tail });
++			if (closing === null) return summary === null ? null : (0, react_jsx_runtime.jsx)("div", {
+ 				className: TurnTailNodeView_module_css_default.root,
+-				children: tail
++				children: summary
+ 			});
+ 			const runMs = turn.start === void 0 || turn.end === void 0 ? void 0 : Math.max(0, turn.end.time - turn.start.time);
+ 			const messageId = closing.finalNode.messageId;
+@@ -9639,7 +9665,7 @@ window.__ModuleLoader__.load({
+ 				className: TurnTailNodeView_module_css_default.root,
+ 				"data-turn-tail": data.turn,
+ 				"data-time-hover-root": true,
+-				children: [tail, (0, react_jsx_runtime.jsx)(MessageIconActions, {
++				children: [summary, (0, react_jsx_runtime.jsx)(MessageIconActions, {
+ 					text: assistantText(closing.blocks),
+ 					time: closing.time,
+ 					runMs,
+@@ -9726,6 +9752,10 @@ window.__ModuleLoader__.load({
+ 						kind: "chain",
+ 						scope: "session"
+ 					},
++					"conversation.chat.turnSummary": {
++						kind: "chain",
++						scope: "session"
++					},
+ 					"conversation.chat.assistant-actions": {
+ 						kind: "list",
+ 						scope: "session"
+diff --git a/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/types/client/chat/TurnTailNodeView.d.ts b/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/types/client/chat/TurnTailNodeView.d.ts
+index b485863..b7a9588 100644
+--- a/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/types/client/chat/TurnTailNodeView.d.ts
++++ b/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/types/client/chat/TurnTailNodeView.d.ts
+@@ -1,6 +1,6 @@
+ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
+ import type { ChatNodeViewProps } from '../contract/slots.ts';
+-type TurnTailNodeViewProps = ChatNodeViewProps<'turn-tail'> & PropsRenderSlots<'conversation.chat.turnTail' | 'conversation.chat.assistant-actions'>;
++type TurnTailNodeViewProps = ChatNodeViewProps<'turn-tail'> & PropsRenderSlots<'conversation.chat.turnTail' | 'conversation.chat.turnSummary' | 'conversation.chat.assistant-actions'>;
+ /** Turn-local actions and feature tail over the Location index, independent of Assistant placement. */
+ export declare const TurnTailNodeView: import("react").MemoExoticComponent<({ node, openFile, forkAt, renderSlot, renderSlotChain, t, useSession, }: TurnTailNodeViewProps) => import("react").JSX.Element | null>;
+ export {};
+diff --git a/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/types/client/contract/slots.d.ts b/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/types/client/contract/slots.d.ts
+index 30c29ed..a328fd2 100644
+--- a/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/types/client/contract/slots.d.ts
++++ b/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/types/client/contract/slots.d.ts
+@@ -152,6 +152,15 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
+             scope: 'session';
+             owner: TurnTailOwnerProps;
+         };
++        /**
++         * Optional richer summary for a completed Turn. When every entry
++         * declines, the regular turn-tail renderer remains the fallback.
++         */
++        'conversation.chat.turnSummary': {
++            kind: 'chain';
++            scope: 'session';
++            owner: TurnTailOwnerProps;
++        };
+         /**
+          * Action strip attached to one finalized assistant message, rendered
+          * inside that message's IconActions row. The chat entry owns the render

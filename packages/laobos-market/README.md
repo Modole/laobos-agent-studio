@@ -8,7 +8,7 @@
 
 | 功能 | 说明 |
 | --- | --- |
-| 🔍 查询 + 正则筛选 | 关键词搜索 GitHub `dsh-plugin` 市场（分页拉取、按星数/Fork/更新时间排序），支持对 **仓库名 / owner·仓库 / 描述 / 全部字段** 做正则二次筛选（不区分大小写） |
+| 🔍 查询 + 分类榜单 | 进入页面自动搜索 GitHub `dsh-plugin` 市场；提供 **交互体验 / 工具能力 / 自动化与 Agent / 开发生态** 分类，以及 **热门榜 / 活跃榜 / Fork 榜**，并支持关键词与正则二次筛选 |
 | 📦 下载安装 | 下载仓库 tarball → 校验 Host/Client 入口及 `__ModuleLoader__` 注册 ID → 事务化写入 `<DSH_HOME>/profiles/<profile>` → 提示重启生效；支持 `force` 覆盖 |
 | 🚀 上传发布 | 本地插件目录（含 package.json）→ 自动 `git init` / 提交（缺 README、LICENSE 自动生成）→ `gh repo create` 公开/私有仓库并推送 → 自动添加 `dsh-plugin` topic 上架市场 |
 | 🤖 对话工具 | 同时注册 `plugin_market_search` / `plugin_market_install` / `plugin_market_upload` 三个工具，在对话中直接操作市场 |
@@ -58,7 +58,7 @@ git clone --depth 1 https://github.com/Modole/dsh-plugin-market-laoboshi.git \
 
 **界面（设置 → 插件市场）：**
 
-- **市场浏览**：输入关键词 + 正则（如 `^(dsh|awesome).*market`），选择作用字段与条数，点击搜索；结果表格可一键安装，已安装插件带绿色标识。
+- **市场浏览**：进入页面后会自动发现并按热度列出 DSH 插件；可在四类能力导航与热门榜、活跃榜、Fork 榜之间切换，也可输入关键词 + 正则（如 `^(dsh|awesome).*market`）再次筛选。热度采用 GitHub Star/Fork/更新时间等公开社区信号，不代表安装量或安全背书。
 - **已安装**：查看当前 profile 全部插件条目与生效状态（含"待重启生效"）。
 - **上传发布**：填写本地插件目录、仓库名、简介，勾选是否私有，点击"发布到 GitHub"。
 - **设置**：代理地址、GitHub API 地址、上传默认 owner、安装目标 profile。

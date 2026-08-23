@@ -1,0 +1,26 @@
+diff --git a/node_modules/ssh2/lib/agent.js b/node_modules/ssh2/lib/agent.js
+index bb495d1..04a659f 100644
+--- a/node_modules/ssh2/lib/agent.js
++++ b/node_modules/ssh2/lib/agent.js
+@@ -38,6 +38,10 @@ const EMPTY_BUF = Buffer.alloc(0);
+ 
+ const binaryParser = makeBufferParser();
+ 
++function physicalAsarPath(filePath) {
++  return filePath.replace(/\.asar([\\/])/u, '.asar.unpacked$1');
++}
++
+ class BaseAgent {
+   getIdentities(cb) {
+     cb(new Error('Missing getIdentities() implementation'));
+@@ -165,7 +169,9 @@ const PageantAgent = (() => {
+   const RET_ERR_BINSTDOUT = 14;
+   const RET_ERR_BADLEN = 15;
+ 
+-  const EXEPATH = resolve(__dirname, '..', 'util/pagent.exe');
++  const EXEPATH = physicalAsarPath(
++    resolve(__dirname, '..', 'util/pagent.exe')
++  );
+   const ERROR = {
+     [RET_ERR_BADARGS]: new Error('Invalid pagent.exe arguments'),
+     [RET_ERR_UNAVAILABLE]: new Error('Pageant is not running'),

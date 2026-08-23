@@ -20,6 +20,14 @@
         description: 关闭沙箱与交互审批，仅应在受信任环境中使用。
 
 - insert:
+    - id: laobos-context-window
+      name: '@laobos/dsh-context-window'
+      config:
+        statePath: !!js dshHomePath('data/context-window.json')
+        standardContextWindow: 200000
+        extendedContextWindow: 1000000
+    - id: laobos-platform-bridge
+      name: '@laobos/dsh-platform-bridge'
     - id: laobos-performance
       name: '@laobos/dsh-performance'
     - id: laobos-shell
@@ -48,5 +56,7 @@
       name: '@laobos/dsh-market'
       config:
         profile: web
+    - id: laobos-plugin-exporter
+      name: '@laobos/dsh-plugin-exporter'
     - id: laobos-updater
       name: '@laobos/dsh-updater'

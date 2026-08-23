@@ -36,6 +36,7 @@ export function startDshRuntime({
   pluginMode = "link",
   platform = process.platform,
   startupTimeoutMs = 30_000,
+  runtimeEnv = {},
 }) {
   const studioRoot = resolve(dirname(patchFile), "..");
   ensureNodePtySpawnHelper(studioRoot);
@@ -59,6 +60,7 @@ export function startDshRuntime({
     "127.0.0.1",
     "--port",
     "0",
+    "--no-open",
   ];
   const child = spawn(nodeExecutable, arguments_, {
     cwd: workspace,
@@ -70,6 +72,7 @@ export function startDshRuntime({
       DSH_TELEMETRY_DISABLED:
         process.env.DSH_TELEMETRY_DISABLED || "1",
       ...(electronRunAsNode ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
+      ...runtimeEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

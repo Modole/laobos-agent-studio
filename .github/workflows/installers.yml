@@ -27,6 +27,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - run: npm audit --omit=dev
       - id: version
         shell: bash
         run: |
@@ -69,6 +70,7 @@ jobs:
         run: npm run desktop:installer:test-update -- --mac dmg zip --arm64
       - run: node scripts/verify-packaged-runtime.mjs "out/installers/mac-arm64/劳博士.app/Contents/Resources/app.asar"
       - run: node scripts/verify-desktop-resources.mjs "out/installers/mac-arm64/劳博士.app/Contents/Resources"
+      - run: node scripts/verify-packaged-executables.mjs "out/installers/mac-arm64/劳博士.app/Contents/MacOS/劳博士" "out/installers/mac-arm64/劳博士.app/Contents/Resources/app.asar"
       - name: Verify macOS signature and update artifacts
         shell: bash
         run: |
@@ -107,6 +109,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - run: npm run desktop:prepare-windows
       - name: Build signed Windows release
         if: env.HAS_WINDOWS_SIGNING == 'true'
         run: npm run desktop:installer -- --win nsis --x64
@@ -121,6 +124,7 @@ jobs:
       - run: node scripts/verify-packaged-runtime.mjs "out/installers/win-unpacked/resources/app.asar"
       - run: node scripts/verify-desktop-resources.mjs "out/installers/win-unpacked/resources"
       - run: node scripts/verify-windows-packaged-runtime.mjs "out/installers/win-unpacked/resources"
+      - run: node scripts/verify-packaged-executables.mjs "out/installers/win-unpacked/laobos-studio.exe" "out/installers/win-unpacked/resources/app.asar"
       - name: Verify Windows signature and update artifacts
         shell: pwsh
         run: |

@@ -2831,6 +2831,18 @@
   white-space: pre-wrap;
 }
 
+.search-results > article > .knowledge-result-markdown {
+  display: block;
+  margin-top: 9px;
+  color: #565550;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.knowledge-result-markdown .markdown-image {
+  max-height: 320px;
+}
+
 .large-empty {
   display: grid;
   min-height: 260px;

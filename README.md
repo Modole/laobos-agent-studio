@@ -11,7 +11,7 @@
 DSH 官方 Web UI
       │  loopback HTTP
       ▼
-DeepSeek Harness 0.1.0-rc.7
+DeepSeek Harness 0.1.0-rc.8
       ├─ Agent presets（标准 / PTC / 极简 / 创造 / 性能实验）
       ├─ Sandbox + Approval + Permission presets
       ├─ Plan 模式安全联动
@@ -19,6 +19,8 @@ DeepSeek Harness 0.1.0-rc.7
 ```
 
 DSH 只监听本机回环地址。Electron 使用随机端口启动运行时，渲染进程保持 `sandbox: true`、`nodeIntegration: false`，并拒绝网页权限请求。
+
+本公开客户端不包含云端登录、账号渠道或私有授权服务；模型与网络搜索继续使用 DSH 自带的本地配置。
 
 ## 开发启动
 
@@ -43,7 +45,7 @@ npm run desktop:dev
 
 ## 桌面安装包
 
-公开发布提供两个原生安装包：macOS Apple 芯片版（DMG）与 Windows x64 版（NSIS EXE）。两者都由 GitHub Actions 在对应系统的原生 Runner 上构建，避免原生模块交叉编译导致不兼容。
+公开发布提供两个原生安装包：macOS Apple 芯片版（DMG）与 Windows x64 版（NSIS EXE）。两者都由 GitHub Actions 在对应系统的原生 Runner 上构建，避免原生模块交叉编译导致不兼容。打包校验会通过安装版 Electron 实际启动 ripgrep，防止 `app.asar` 虚拟路径被误传给子进程；Windows 同时覆盖 Pageant 辅助程序，Linux 运行时补丁覆盖 Landlock 启动器。
 
 ```bash
 # macOS Apple Silicon
@@ -151,24 +153,52 @@ macOS 默认数据目录：
 
 数据位于 DSH Home 的 `data/system-tools.db`。
 
+第三方插件可以向项目侧栏动态注册集成页面，并为导航与面包屑声明自己的 SVG 图标：
+
+```js
+function IntegrationIcon({ size = 16, className }) {
+  return h("svg", {
+    className,
+    width: size,
+    height: size,
+    viewBox: "0 0 16 16",
+    fill: "none",
+    stroke: "currentColor",
+  }, h("path", { d: "M3 8h10M8 3v10" }));
+}
+
+IntegrationPage.projectIntegrationIcon = IntegrationIcon;
+ctx.slots.inject("laobos.project.integration", () => ctx.slots.register({
+  name: "laobos.project.integration",
+  id: "example-integration",
+  order: 10,
+  label: () => "示例集成",
+}, IntegrationPage));
+```
+
+未声明 `projectIntegrationIcon` 时，侧栏使用通用插件图标；插件无需修改宿主中的 ID 映射。
+
 ## 桌面增强与插件
 
 桌面版把右侧项目栏分成“对话 / 工作台 / 集成管理”三组，并把高权限能力收敛到 Electron 主进程。网页侧只能调用经过校验的最小化 preload API，文件路径会做工作区边界、真实路径和符号链接检查。
 
-- 会话：编辑上一轮并从稳定边界创建分支、重试上一轮、导出带内嵌资源的离线 HTML、重命名和可恢复删除
+- 会话：编辑上一轮并从稳定边界创建分支、重试上一轮、导出带内嵌资源的离线 HTML、重命名和可恢复删除；已完成操作可折叠，回合末尾汇总本轮编辑文件和代码增删行数
 - 右键菜单：工作区可打开文件管理器、Git 审查和终端；会话可打开、编辑、重试、导出、重命名和删除
-- 文件工作台：目录浏览、创建、编辑、重命名、删除、文本/图片/PDF/音视频预览和系统文件管理器定位；首次访问启动目录外的工作区会请求授权并记住用户选择
-- 版本中心：状态与 staged/unstaged diff、未跟踪文件预览、提交历史、初始化、暂存、提交、分支管理，以及需确认的恢复和远端同步；Windows 安装包内置固定校验的 MinGit，不依赖图形进程的 `PATH`
+- 文件工作台：目录浏览、创建、重命名、删除、文本/图片/PDF/音视频预览和系统文件管理器定位；文本文件使用 CodeMirror 编辑器与常用语言高亮
+- 版本中心：使用多文件目录树浏览 staged/unstaged diff、未跟踪文件和提交历史，并支持初始化、暂存、提交、分支管理、恢复与远端同步；Windows 安装包内置固定校验的 MinGit，不依赖图形进程的 `PATH`
 - 文件上传：支持选择、粘贴和桌面拖放；支持视觉的模型使用原生图片通道，不支持视觉时图片会作为普通受管文件交给 Agent
 - 上传路径：在“设置 > 文件上传”中选择“默认”或“工作区内”；默认写入 DSH Home 的 `uploads/v1`，后者使用当前工作区的 `update` 文件夹
 - 剪贴板：桌面端通过受约束的主进程 IPC 写入，浏览器 API 仍作为回退，并在失败时提供明确反馈
-- 终端插件：基于 `node-pty` 与 xterm；每个标签使用独立的稳定命名 tmux 会话，打开或重连时自动回到当前工作区，未安装 tmux 时明确提示并回退到登录 Shell
-- 浏览器插件：使用隔离的 `WebContentsView` 预览 HTTP(S) 地址；BrowserOps daemon 仅在用户点击后启动，并可随时停止
-- SSH 插件：密码和私钥使用系统 `safeStorage` 加密，主机密钥采用 TOFU 校验，发生变更时阻止连接
+- 终端插件：基于 `node-pty` 与 xterm；提供终端内搜索和链接识别，每个标签使用独立的稳定命名 tmux 会话，打开或重连时自动回到当前工作区，未安装 tmux 时明确提示并回退到登录 Shell
+- 浏览器插件：使用隔离的 `WebContentsView` 预览 HTTP(S) 地址，支持页面元素点选和脱敏上下文注入
+- SSH 插件：终端、SFTP 和 Agent 远程工具共用主进程连接服务；支持 OpenSSH 配置导入、默认身份文件、SSH Agent 与 ProxyJump，密码和私钥使用系统 `safeStorage` 加密，主机密钥采用 TOFU 校验，发生变更时阻止连接
 - 应用管理插件：登记、探测、启动、停止和查看日志；进程始终以 `shell: false` 启动，“移出管理”不会删除项目文件
 - Shell 与 WSL：自动检测 Windows 的 WSL、Linux 发行版、Git Bash 与 PowerShell；设置页提供需 UAC 确认的 WSL/Ubuntu 安装、分阶段进度、重启恢复和可编辑的标准模式诊断对话
 - 软件更新：设置页可检查、下载并安装公开 GitHub Release；下载状态可恢复，应用退出时会等待本地运行时安全关闭
 - 插件恢复：市场安装前校验 Host/Client 入口和模块 ID；用户插件导致启动失败时会自动隔离并以安全模式重启
+- 插件导出：`plugin_package_export` 可在工作区内检查并导出符合规范的 `.tar.gz`，只生成本地文件，不上传或发布
+
+模型菜单提供独立的上下文窗口开关，可在 `200K` 与 `1M` 间切换；设置保存在本机，不依赖登录状态。普通浏览器运行 DSH 时，平台桥会按能力降级复用工作区、Git、终端、SSH 和应用管理接口。
 
 删除的会话会先归档，再移动到 DSH Home 下的劳博士回收站；不会直接永久擦除。Terminal、BrowserOps、SSH 和应用管理均为独立 DSH 客户端插件，配置位于 `config/laobos.cordis.patch.yml`。修改终端或 SSH 的 JSX 源码后，可单独重建浏览器插件：
 

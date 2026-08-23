@@ -4,7 +4,7 @@
 
 ## DeepSeek Harness
 
-- Package: `@deepseek-ai/dsh` 0.1.0-rc.7
+- Package: `@deepseek-ai/dsh` 0.1.0-rc.8
 - Project: <https://github.com/deepseek-ai/deepseek-harness>
 - License: MIT
 - Copyright: Copyright (c) 2026 DeepSeek

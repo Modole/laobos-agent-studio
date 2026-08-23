@@ -11,7 +11,10 @@ import {
 } from "../desktop/dsh-runtime.mjs";
 import { verifyPackagedRuntime } from "../scripts/verify-packaged-runtime.mjs";
 import { verifyDesktopResources } from "../scripts/verify-desktop-resources.mjs";
-import { verifyWindowsPackagedRuntime } from "../scripts/verify-windows-packaged-runtime.mjs";
+import {
+  verifyKoffiNativeVersion,
+  verifyWindowsPackagedRuntime,
+} from "../scripts/verify-windows-packaged-runtime.mjs";
 
 test("desktop runtime startup errors retain useful child-process output", () => {
   assert.equal(
@@ -160,7 +163,8 @@ test("desktop release configuration builds native macOS and Windows installers",
   assert.equal(workflow.match(/verify-packaged-runtime\.mjs/g)?.length, 2);
   assert.equal(workflow.match(/verify-desktop-resources\.mjs/g)?.length, 2);
   assert.equal(workflow.match(/verify-windows-packaged-runtime\.mjs/g)?.length, 1);
-  assert.equal(workflow.match(/app\.asar/g)?.length, 2);
+  assert.equal(workflow.match(/verify-packaged-executables\.mjs/g)?.length, 2);
+  assert.equal(workflow.match(/app\.asar/g)?.length, 4);
   assert.equal(workflow.match(/actions\/upload-artifact@v7/g)?.length, 2);
   assert.match(builderConfig, /target: zip[\s\S]*arch:\n\s+- arm64/);
   assert.match(builderConfig, /repo: laobos-agent-studio/);
@@ -184,6 +188,42 @@ test("Windows packaged runtime verification rejects missing platform binaries", 
     await assert.rejects(
       verifyWindowsPackagedRuntime(resourcesDirectory),
       /Koffi Windows x64/,
+    );
+  } finally {
+    await rm(resourcesDirectory, { recursive: true, force: true });
+  }
+});
+
+test("Windows packaged runtime verification rejects mismatched Koffi versions", async () => {
+  const resourcesDirectory = await mkdtemp(path.join(tmpdir(), "laobos-windows-koffi-test-"));
+  const appDirectory = path.join(resourcesDirectory, "app");
+  const koffiDirectory = path.join(appDirectory, "node_modules", "koffi");
+  const nativeDirectory = path.join(
+    resourcesDirectory,
+    "app.asar.unpacked",
+    "node_modules",
+    "@koromix",
+    "koffi-win32-x64",
+  );
+
+  try {
+    await mkdir(koffiDirectory, { recursive: true });
+    await mkdir(nativeDirectory, { recursive: true });
+    await writeFile(path.join(appDirectory, "package.json"), JSON.stringify({ name: "fixture-app" }));
+    await writeFile(path.join(koffiDirectory, "package.json"), JSON.stringify({
+      name: "koffi",
+      version: "3.1.6",
+      optionalDependencies: { "@koromix/koffi-win32-x64": "3.1.6" },
+    }));
+    await writeFile(path.join(nativeDirectory, "package.json"), JSON.stringify({
+      name: "@koromix/koffi-win32-x64",
+      version: "3.1.5",
+    }));
+    await createPackage(appDirectory, path.join(resourcesDirectory, "app.asar"));
+
+    await assert.rejects(
+      verifyKoffiNativeVersion(resourcesDirectory),
+      /Koffi Windows 原生模块版本不匹配：koffi=3\.1\.6.*=3\.1\.5/,
     );
   } finally {
     await rm(resourcesDirectory, { recursive: true, force: true });
