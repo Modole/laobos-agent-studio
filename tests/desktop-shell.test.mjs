@@ -194,10 +194,17 @@ test("Windows packaged runtime verification rejects missing platform binaries", 
   }
 });
 
-test("Windows packaged runtime verification rejects mismatched Koffi versions", async () => {
+test("Windows packaged runtime verification finds nested Koffi and rejects mismatched versions", async () => {
   const resourcesDirectory = await mkdtemp(path.join(tmpdir(), "laobos-windows-koffi-test-"));
   const appDirectory = path.join(resourcesDirectory, "app");
-  const koffiDirectory = path.join(appDirectory, "node_modules", "koffi");
+  const koffiDirectory = path.join(
+    appDirectory,
+    "node_modules",
+    "@deepseek-ai",
+    "fixture",
+    "node_modules",
+    "koffi",
+  );
   const nativeDirectory = path.join(
     resourcesDirectory,
     "app.asar.unpacked",
@@ -223,7 +230,7 @@ test("Windows packaged runtime verification rejects mismatched Koffi versions", 
 
     await assert.rejects(
       verifyKoffiNativeVersion(resourcesDirectory),
-      /Koffi Windows 原生模块版本不匹配：koffi=3\.1\.6.*=3\.1\.5/,
+      /Koffi Windows 原生模块版本不匹配：@koromix\/koffi-win32-x64=3\.1\.5[\s\S]*koffi=3\.1\.6/,
     );
   } finally {
     await rm(resourcesDirectory, { recursive: true, force: true });

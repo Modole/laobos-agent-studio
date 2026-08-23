@@ -3,7 +3,7 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { extractFile } from "@electron/asar";
+import { extractFile, listPackage } from "@electron/asar";
 
 const WINDOWS_X64_NATIVE_FILES = [
   [
@@ -69,15 +69,6 @@ export async function verifyKoffiNativeVersion(resourcesDirectoryInput) {
     "package.json",
   );
 
-  let koffiManifest;
-  try {
-    koffiManifest = JSON.parse(
-      extractFile(appArchive, "node_modules/koffi/package.json").toString("utf8"),
-    );
-  } catch (error) {
-    throw new Error(`无法读取安装包中的 Koffi 主包版本：${appArchive}`, { cause: error });
-  }
-
   let nativeManifest;
   try {
     nativeManifest = JSON.parse(await readFile(nativeManifestPath, "utf8"));
@@ -86,18 +77,48 @@ export async function verifyKoffiNativeVersion(resourcesDirectoryInput) {
   }
 
   const nativePackageName = "@koromix/koffi-win32-x64";
-  const declaredVersion = koffiManifest.optionalDependencies?.[nativePackageName];
-  if (
-    koffiManifest.version !== nativeManifest.version
-    || declaredVersion !== nativeManifest.version
-  ) {
+  let manifestPaths;
+  try {
+    manifestPaths = listPackage(appArchive)
+      .map((entry) => entry.replace(/^[\\/]+/, "").replaceAll("\\", "/"))
+      .filter((entry) => entry.endsWith("node_modules/koffi/package.json"));
+  } catch (error) {
+    throw new Error(`无法枚举安装包中的 Koffi 主包：${appArchive}`, { cause: error });
+  }
+
+  if (manifestPaths.length === 0) {
+    throw new Error(`安装包中未找到 Koffi 主包：${appArchive}`);
+  }
+
+  const mismatches = [];
+  for (const manifestPath of manifestPaths) {
+    let koffiManifest;
+    try {
+      const archiveManifestPath = manifestPath.split("/").join(path.sep);
+      koffiManifest = JSON.parse(extractFile(appArchive, archiveManifestPath).toString("utf8"));
+    } catch (error) {
+      throw new Error(`无法读取安装包中的 Koffi 主包版本：${manifestPath}`, { cause: error });
+    }
+    const declaredVersion = koffiManifest.optionalDependencies?.[nativePackageName];
+    if (
+      koffiManifest.version !== nativeManifest.version
+      || declaredVersion !== nativeManifest.version
+    ) {
+      mismatches.push(
+        `${manifestPath}: koffi=${koffiManifest.version ?? "未知"}，`
+        + `声明版本=${declaredVersion ?? "未声明"}`,
+      );
+    }
+  }
+
+  if (mismatches.length > 0) {
     throw new Error(
-      `Koffi Windows 原生模块版本不匹配：koffi=${koffiManifest.version ?? "未知"}，`
-      + `${nativePackageName}=${nativeManifest.version ?? "未知"}，声明版本=${declaredVersion ?? "未声明"}`,
+      `Koffi Windows 原生模块版本不匹配：${nativePackageName}=${nativeManifest.version ?? "未知"}\n`
+      + mismatches.map((mismatch) => `- ${mismatch}`).join("\n"),
     );
   }
 
-  return { version: koffiManifest.version };
+  return { version: nativeManifest.version, manifestCount: manifestPaths.length };
 }
 
 export async function verifyWindowsPackagedRuntime(resourcesDirectoryInput) {
